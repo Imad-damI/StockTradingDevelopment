@@ -1,0 +1,114 @@
+﻿@page "/websocketzapas"
+@rendermode InteractiveServer
+
+@using System.Net.WebSockets;
+@using Microsoft.AspNetCore.SignalR.Client
+@using System;
+@using System.Net;
+@using System.Text;
+@using System.Threading.Tasks;
+@using System.Text.Json;
+@using Newtonsoft.Json.Linq;
+
+
+<title>WebSocket Client</title>
+<h1>WebSocket Client</h1>
+<button @onclick="sendSum">Button clicker lol</button>
+
+@code {
+    private JObject o = JObject.Parse(@"{
+        'command': 'login',
+        'arguments': {
+            'userId': '15864606',
+            'password': 'imad12E4',
+            'appId': 'test',
+            'appName': 'test',
+        }
+    }");
+
+    private JObject mesend = JObject.Parse(@"{
+        'command': 'login',
+        'arguments': {
+            'userId': '15864606',
+            'password': 'imad12E4',
+            'appId': 'test',
+            'appName': 'test',
+        }
+    }");
+
+    ArraySegment<Byte> buffer = new ArraySegment<byte>(new Byte[8192]);
+    ArraySegment<Byte> messager = new ArraySegment<byte>(new Byte[8192]);
+    WebSocketReceiveResult result = null;
+
+
+    ClientWebSocket socket = new ClientWebSocket();
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        await socket.ConnectAsync(new Uri("wss://ws.xtb.com/demo"), CancellationToken.None);
+        var jsonString = JsonSerializer.Serialize(o);
+        var url = new Uri("wss://ws.xtb.com/demo");
+        Console.WriteLine("treid connecting lol");
+        Console.WriteLine(socket.State);
+
+        string message = "Hello from the client!";
+        byte[] messageBytes = Encoding.UTF8.GetBytes(jsonString);
+
+        try
+        {
+            await socket.SendAsync(messageBytes, WebSocketMessageType.Text, true, CancellationToken.None);
+        }
+
+        catch (WebSocketException ex)
+        {
+            Console.WriteLine("Websocket error:", ex);
+        }
+
+        catch (Exception ex)
+        {
+            Console.WriteLine("Non websocket error:", ex);
+        }
+
+        try
+        {
+            while (socket.State == WebSocketState.Open)
+            {
+                result = await socket.ReceiveAsync(buffer, CancellationToken.None);
+                var receivedMessage = Encoding.UTF8.GetString(buffer.ToArray(), 0, result.Count);
+                Console.WriteLine("Received Message: {0}", receivedMessage);
+
+                if (result.MessageType == WebSocketMessageType.Close)
+                {
+                    await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, string.Empty, CancellationToken.None);
+                    break;
+                }
+            }
+        }
+
+        catch (WebSocketException ex)
+        {
+            Console.WriteLine("Websocket error:", ex);
+        }
+
+        catch (Exception ex)
+        {
+            Console.WriteLine("Non websocket error:", ex);
+        }
+
+        
+    }
+
+    private async Task sendSum()
+    {
+        var jsonString = JsonSerializer.Serialize(o);
+        messager = Encoding.UTF8.GetBytes(jsonString);
+        Console.WriteLine("Trying to send info by click!");
+        Console.WriteLine("Messager:", messager);
+        await socket.SendAsync(messager, WebSocketMessageType.Text, true, CancellationToken.None);
+    }
+
+    
+
+
+}
