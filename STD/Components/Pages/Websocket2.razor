@@ -13,6 +13,34 @@
 
 <h1>Websocket Example</h1>
 
+<div class="text-center bg-blue-100">
+    <input class="border-4 w-1/3 rounded m-6 p-6 h-8
+               border-blue-300" @bind-value="SearchText"
+           @bind-value:event="oninput" placeholder="Search by stock name" />
+</div>
+
+@if (!TestList.Any())
+{
+    <p>Nothing found</p>
+}
+else
+{
+    @if (SearchText?.Length > 0)  // Check if SearchText is not null and has length greater than 0
+    {
+        <div class="p-2">
+            @foreach (var wpis in TestList)
+            {
+                <p>@wpis</p>
+            }
+        </div>
+    }
+    else
+    {
+        <p>Type something to search...</p>
+        // Optional: Display a message when no character is typed
+    }
+}
+
 <h3>Connecting to Bitmex server</h3>
 <small>Running: @_client?.IsRunning</small>
 
@@ -38,7 +66,6 @@
 
 <button @onclick="test5">Show latest 5</button>
 
-<pre>
     @foreach (var log in GetLogs())
     {
         var timestamp = log.Timestamp.ToLocalTime().ToString("HH:mm:ss.fff");
@@ -55,7 +82,6 @@
                 break;
         }
     }
-</pre>
 
 @code {
     private readonly List<LogMessage> _logs = new();
@@ -75,8 +101,21 @@
 	    'command': 'getAllSymbols'
     }");
 
-    StringBuilder downloadedData = new StringBuilder();
+    public string SearchText = "";
 
+    static string[] ImageList = { "Test1", "Test2", "Test3" };
+    List<string> testList = new List<string>(ImageList);
+
+    List<string> TestList => ImageList.Where(
+    strest => strest.ToLower().Contains(SearchText.ToLower())).ToList();
+
+    
+
+    private string StId = "";
+
+    
+
+    
 
     protected override async Task OnInitializedAsync()
     {
@@ -106,20 +145,22 @@
 
         _client.MessageReceived.Subscribe(msg =>
         {
-        Console.WriteLine($"Message received: {msg}");
-        var testJson = @"{""status"":false,""errorCode"":""BE118"",""errorDescr"":""User already logged""}";
-        ArraySegment<byte> messi = Encoding.UTF8.GetBytes(testJson);
-        Log($"Received: '{msg.Text}'", LogSeverity.Info);
-        downloadedData.AppendLine(msg.Text);
-        var jsonObject = JObject.Parse(msg.Text);
-        var data = jsonObject["status"];
-        StId = msg.Text;
+            Console.WriteLine($"Message received: {msg}");
+            Log($"Received: '{msg.Text}'", LogSeverity.Info);
+            string json2 = JsonConvert.SerializeObject(msg.Text);
+            //Console.WriteLine($"Json message before serialize: {msg}");
+            //Console.WriteLine($"Json message after serialize: " + json2);
+            JObject parsed = JObject.Parse(msg.Text);
+            //Console.WriteLine("Otrzymany string: " + parsed);
 
-        // Create a new variable to store the message
-        var receivedMessage = msg.Text;
-
-        Console.WriteLine("Otrzymany string: ", messi);
-        Console.WriteLine("Received message: {receivedMessage}");
+            foreach (var pair in parsed)
+            {
+                if (pair.Key == "streamSessionId"){
+                    StId = pair.Value.ToString();
+                    Console.WriteLine("StId: " + StId);
+                }
+            Console.WriteLine("{0}: {1}", pair.Key, pair.Value);
+        }
         });
 
 
@@ -164,34 +205,10 @@
 
     }
 
-    public async Task DownloadData()
-    {
-        string dataText = downloadedData.ToString(); // Get the accumulated data
-        byte[] dataBytes = Encoding.UTF8.GetBytes(dataText); // Convert to byte array
-
-        var fileName = "websocket_data.txt";
-
-        var dataObject = new Dictionary<string, object>()
-        {
-            { "fileName", fileName },
-            { "data", Convert.ToBase64String(dataBytes) } // Encode dataBytes to Base64 string for efficient transfer
-        };
-
-        var jsonData = JsonConvert.SerializeObject(dataObject);
-        var argumentArray = new object[] { jsonData };
-
-        Console.WriteLine("Download file test:", jsonData);
-
-        await JSRuntime.InvokeAsync<object>("downloadFile", argumentArray);
-
-
-    }
-
     public void gibAll()
     {
         _message = JsonConvert.SerializeObject(temst);
         _client?.Send(_message);
-        DownloadData();
 
     }
 
