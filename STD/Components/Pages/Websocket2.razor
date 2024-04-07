@@ -1,4 +1,5 @@
-﻿@page "/websocket"
+﻿﻿
+@page "/websocket"
 @rendermode InteractiveServer
 @using System.Text;
 @using System.Net.WebSockets
@@ -19,25 +20,24 @@
            @bind-value:event="oninput" placeholder="Search by stock name" />
 </div>
 
-@if (!TestList.Any())
+@if (!TestItems.Any())
 {
     <p>Nothing found</p>
 }
 else
 {
-    @if (SearchText?.Length > 0)  // Check if SearchText is not null and has length greater than 0
+    @if (SearchText?.Length > 0)
     {
         <div class="p-2">
-            @foreach (var wpis in TestList)
+            @foreach (var item in TestList)
             {
-                <p>@wpis</p>
+                <p>@item.Symbol - @item.Description (@item.Bid)</p>
             }
         </div>
     }
     else
     {
         <p>Type something to search...</p>
-        // Optional: Display a message when no character is typed
     }
 }
 
@@ -66,23 +66,6 @@ else
 
 <button @onclick="test5">Show latest 5</button>
 
-    @foreach (var log in GetLogs())
-    {
-        var timestamp = log.Timestamp.ToLocalTime().ToString("HH:mm:ss.fff");
-        switch (log.Severity)
-        {
-            case LogSeverity.Warning:
-            <div class="text-warning">@timestamp @log.Message</div>
-                break;
-            case LogSeverity.Error:
-            <div class="text-danger">@timestamp @log.Message</div>
-                break;
-            default:
-            <div class="text-secondary">@timestamp @log.Message</div>
-                break;
-        }
-    }
-
 @code {
     private readonly List<LogMessage> _logs = new();
     private IWebsocketClient? _client;
@@ -102,20 +85,28 @@ else
     }");
 
     public string SearchText = "";
+    public List<Item> TestItems = new List<Item>();
 
-    static string[] ImageList = { "Test1", "Test2", "Test3" };
-    List<string> testList = new List<string>(ImageList);
-
-    List<string> TestList => ImageList.Where(
-    strest => strest.ToLower().Contains(SearchText.ToLower())).ToList();
-
-    
 
     private string StId = "";
 
-    
+    public class Item
+    {
+        public string? Symbol { get; set; }
+        public string? Description { get; set; }
+        public float Bid { get; set; }
+    }
 
-    
+    private List<Item> TestList => TestItems
+    .Where(item =>
+        (item.Description == null || // Optional check for null descriptions
+        !item.Description.ToUpperInvariant().Contains("CFD")) &&
+        ((item.Symbol?.ToLower().Contains(SearchText.ToLower()) ?? false) ||
+        (item.Description?.ToLower().Contains(SearchText.ToLower()) ?? false))
+    )
+    .Take(25) // Limit to the first 25 items
+    .ToList();
+
 
     protected override async Task OnInitializedAsync()
     {
@@ -145,22 +136,73 @@ else
 
         _client.MessageReceived.Subscribe(msg =>
         {
-            Console.WriteLine($"Message received: {msg}");
+            //Console.WriteLine($"Message received: {msg}");
             Log($"Received: '{msg.Text}'", LogSeverity.Info);
             string json2 = JsonConvert.SerializeObject(msg.Text);
-            //Console.WriteLine($"Json message before serialize: {msg}");
-            //Console.WriteLine($"Json message after serialize: " + json2);
             JObject parsed = JObject.Parse(msg.Text);
-            //Console.WriteLine("Otrzymany string: " + parsed);
 
             foreach (var pair in parsed)
             {
-                if (pair.Key == "streamSessionId"){
+                if (pair.Key == "streamSessionId")
+                {
                     StId = pair.Value.ToString();
                     Console.WriteLine("StId: " + StId);
                 }
-            Console.WriteLine("{0}: {1}", pair.Key, pair.Value);
-        }
+                if (pair.Key == "returnData")
+                {
+                    List<Item> extractedItems = new List<Item>();
+
+                    if (pair.Value is JArray symbolRecordsArray)
+                    {
+                        foreach (var element in symbolRecordsArray)
+                        {
+                            try
+                            {
+                                var symbol = element["symbol"]?.Value<string>();
+                                var description = element["description"]?.Value<string>();
+                                var bid = element["bid"].Value<float>();
+
+                                if (bid != 0)
+                                {
+                                    
+                                    // Trim leading/trailing whitespaces (including potential invisible characters)
+                                    
+
+                                    Console.WriteLine("Bid string po parse" + bid);
+                                    if (bid != 0)
+                                    {
+                                        TestItems.Add(new Item { Symbol = symbol, Description = description, Bid = bid });
+                                    }
+                                    else
+                                    {
+                                        Console.WriteLine($"Invalid bid format after cleaning: {bid}");
+                                    }
+                                }
+                                else
+                                {
+                                    // Handle missing bid value (assign default or skip element)
+                                    Console.WriteLine($"Missing bid value in element: {element}");
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                // Handle potential errors during extraction
+                                Console.WriteLine($"Error extracting data from element: {ex.Message}");
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Handle unexpected data type for pair.Value
+                        Console.WriteLine($"Unexpected data type for returnData: {pair.Value.GetType().Name}");
+                    }
+
+                    // Use the extractedItems list for further processing or display
+                }
+            
+                //Console.WriteLine("Tutaj jest przerwa między wierszami! {0}: {1} A tutaj się kończy Value! przy okazji key to {0}", pair.Key, pair.Value);
+            }
+            
         });
 
 
