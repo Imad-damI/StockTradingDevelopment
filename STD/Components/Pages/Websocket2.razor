@@ -1,14 +1,16 @@
-﻿﻿
 @page "/websocket"
 @rendermode InteractiveServer
 @using System.Text;
-@using System.Net.WebSockets
-@using Newtonsoft.Json
-@using Newtonsoft.Json.Linq
+@using System.Net.WebSockets;
+@using Newtonsoft.Json;
+@using MySqlConnector;
+@using Newtonsoft.Json.Linq;
 @using System.Text.Json;
 @using Websocket.Client;
 @using System.Collections.Generic;
 @using Websocket.Client.Threading;
+@using STD.Components.Additions;
+@using STD.Components.Models;
 @implements IAsyncDisposable;
 @inject IJSRuntime JSRuntime
 
@@ -31,7 +33,12 @@ else
         <div class="p-2">
             @foreach (var item in TestList)
             {
-                <p>@item.Symbol - @item.Description (@item.Bid)</p>
+
+                <p>
+                    @item.Symbol - @item.Description (@item.Bid)
+                    <button @onclick="() => HandleBidClick(item.Bid)">Use Bid</button>
+                </p>
+
             }
         </div>
     }
@@ -40,6 +47,7 @@ else
         <p>Type something to search...</p>
     }
 }
+
 
 <h3>Connecting to Bitmex server</h3>
 <small>Running: @_client?.IsRunning</small>
@@ -108,11 +116,32 @@ else
     .ToList();
 
 
+
+    private string StId = "";
+
+    public class Item
+    {
+        public string? Symbol { get; set; }
+        public string? Description { get; set; }
+        public float Bid { get; set; }
+    }
+
+    private List<Item> TestList => TestItems
+    .Where(item =>
+        (item.Description == null || // Optional check for null descriptions
+         !item.Description.ToUpperInvariant().Contains("CFD")) &&
+        ((item.Symbol?.Split('.')?.FirstOrDefault() ?? "").ToLower().Contains(SearchText.ToLower()) ||
+         (item.Description?.ToLower().Contains(SearchText.ToLower()) ?? false))
+    )
+    .Take(25) // Limit to the first 25 items (optional)
+    .ToList();
+
+
     protected override async Task OnInitializedAsync()
     {
 
 
-
+        
         var url = new Uri("wss://ws.xtb.com/demo");
         var StId = "";
         _client = new WebsocketClient(url);
@@ -164,10 +193,6 @@ else
 
                                 if (bid != 0)
                                 {
-                                    
-                                    // Trim leading/trailing whitespaces (including potential invisible characters)
-                                    
-
                                     Console.WriteLine("Bid string po parse" + bid);
                                     if (bid != 0)
                                     {
@@ -199,16 +224,26 @@ else
 
                     // Use the extractedItems list for further processing or display
                 }
-            
+
                 //Console.WriteLine("Tutaj jest przerwa między wierszami! {0}: {1} A tutaj się kończy Value! przy okazji key to {0}", pair.Key, pair.Value);
+                List<Item> modifiedItems = new List<Item>();
+                foreach (Item item in TestItems)
+                {
+                    string newSymbol = item.Symbol?.Split('.')?.FirstOrDefault() ?? "";
+                    modifiedItems.Add(new Item { Symbol = newSymbol, Description = item.Description, Bid = item.Bid });
+                }
+
+                TestItems = modifiedItems; // Update the original list with modified items
+
+                TestItems = TestItems.DistinctBy(item => item.Symbol).ToList();
             }
-            
         });
 
 
         Console.WriteLine("Starting...");
         await _client.Start();
         Console.WriteLine("Started.");
+        gibAll();
     }
 
     public async ValueTask DisposeAsync()
@@ -246,6 +281,22 @@ else
     {
 
     }
+    public void HandleBidClick(float bidValue)
+    {
+        // Find the selected item based on bidValue (assuming bidValue is unique)
+        var selectedItem = TestItems.FirstOrDefault(item => item.Bid == bidValue);
+
+        if (selectedItem != null)
+        {
+            // Call helper function to insert data into MySQL database
+            Task.Run(() => mySQLSqlHelperMain.InsertPortfolio(selectedItem.Symbol!, selectedItem.Description!, bidValue));
+            Console.WriteLine($"Bid value clicked and data inserted for: {selectedItem.Symbol}");
+        }
+        else
+        {
+            Console.WriteLine("Could not find matching item for bid value.");
+        }
+    }
 
     public void gibAll()
     {
@@ -253,8 +304,4 @@ else
         _client?.Send(_message);
 
     }
-
-
-
-    
 }
