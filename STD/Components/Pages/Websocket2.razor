@@ -1,4 +1,5 @@
-﻿@page "/websocket"
+﻿﻿﻿
+@page "/websocket"
 @rendermode InteractiveServer
 @using System.Text;
 @using System.Net.WebSockets
@@ -8,10 +9,42 @@
 @using Websocket.Client;
 @using System.Collections.Generic;
 @using Websocket.Client.Threading;
+@using STD.Components.Additions;
 @implements IAsyncDisposable;
 @inject IJSRuntime JSRuntime
 
 <h1>Websocket Example</h1>
+
+<div class="text-center bg-blue-100">
+    <input class="border-4 w-1/3 rounded m-6 p-6 h-8
+               border-blue-300" @bind-value="SearchText"
+           @bind-value:event="oninput" placeholder="Search by stock name" />
+</div>
+
+@if (!TestItems.Any())
+{
+    <p>Nothing found</p>
+}
+else
+{
+    @if (SearchText?.Length > 0)
+    {
+        <div class="p-2">
+            @foreach (var item in TestList)
+            {
+                <p>
+                    @item.Symbol - @item.Description (@item.Bid)
+                    <button @onclick="() => HandleBidClick(item.Bid)">Use Bid</button>
+                </p>
+            }
+        </div>
+    }
+    else
+    {
+        <p>Type something to search...</p>
+    }
+}
+
 
 <h3>Connecting to Bitmex server</h3>
 <small>Running: @_client?.IsRunning</small>
@@ -38,25 +71,6 @@
 
 <button @onclick="test5">Show latest 5</button>
 
-<pre>
-    @foreach (var log in GetLogs())
-    {
-        var timestamp = log.Timestamp.ToLocalTime().ToString("HH:mm:ss.fff");
-        switch (log.Severity)
-        {
-            case LogSeverity.Warning:
-            <div class="text-warning">@timestamp @log.Message</div>
-                break;
-            case LogSeverity.Error:
-            <div class="text-danger">@timestamp @log.Message</div>
-                break;
-            default:
-            <div class="text-secondary">@timestamp @log.Message</div>
-                break;
-        }
-    }
-</pre>
-
 @code {
     private readonly List<LogMessage> _logs = new();
     private IWebsocketClient? _client;
@@ -75,7 +89,28 @@
 	    'command': 'getAllSymbols'
     }");
 
-    StringBuilder downloadedData = new StringBuilder();
+    public string SearchText = "";
+    public List<Item> TestItems = new List<Item>();
+
+
+    private string StId = "";
+
+    public class Item
+    {
+        public string? Symbol { get; set; }
+        public string? Description { get; set; }
+        public float Bid { get; set; }
+    }
+
+    private List<Item> TestList => TestItems
+    .Where(item =>
+        (item.Description == null || // Optional check for null descriptions
+         !item.Description.ToUpperInvariant().Contains("CFD")) &&
+        ((item.Symbol?.Split('.')?.FirstOrDefault() ?? "").ToLower().Contains(SearchText.ToLower()) ||
+         (item.Description?.ToLower().Contains(SearchText.ToLower()) ?? false))
+    )
+    .Take(25) // Limit to the first 25 items (optional)
+    .ToList();
 
 
     protected override async Task OnInitializedAsync()
@@ -106,20 +141,83 @@
 
         _client.MessageReceived.Subscribe(msg =>
         {
-        Console.WriteLine($"Message received: {msg}");
-        var testJson = @"{""status"":false,""errorCode"":""BE118"",""errorDescr"":""User already logged""}";
-        ArraySegment<byte> messi = Encoding.UTF8.GetBytes(testJson);
-        Log($"Received: '{msg.Text}'", LogSeverity.Info);
-        downloadedData.AppendLine(msg.Text);
-        var jsonObject = JObject.Parse(msg.Text);
-        var data = jsonObject["status"];
-        StId = msg.Text;
+            //Console.WriteLine($"Message received: {msg}");
+            Log($"Received: '{msg.Text}'", LogSeverity.Info);
+            string json2 = JsonConvert.SerializeObject(msg.Text);
+            JObject parsed = JObject.Parse(msg.Text);
 
-        // Create a new variable to store the message
-        var receivedMessage = msg.Text;
+            foreach (var pair in parsed)
+            {
+                if (pair.Key == "streamSessionId")
+                {
+                    StId = pair.Value.ToString();
+                    Console.WriteLine("StId: " + StId);
+                }
+                if (pair.Key == "returnData")
+                {
+                    List<Item> extractedItems = new List<Item>();
 
-        Console.WriteLine("Otrzymany string: ", messi);
-        Console.WriteLine("Received message: {receivedMessage}");
+                    if (pair.Value is JArray symbolRecordsArray)
+                    {
+                        foreach (var element in symbolRecordsArray)
+                        {
+                            try
+                            {
+                                var symbol = element["symbol"]?.Value<string>();
+                                var description = element["description"]?.Value<string>();
+                                var bid = element["bid"].Value<float>();
+
+                                if (bid != 0)
+                                {
+
+                                    // Trim leading/trailing whitespaces (including potential invisible characters)
+
+
+                                    Console.WriteLine("Bid string po parse" + bid);
+                                    if (bid != 0)
+                                    {
+                                        TestItems.Add(new Item { Symbol = symbol, Description = description, Bid = bid });
+                                    }
+                                    else
+                                    {
+                                        Console.WriteLine($"Invalid bid format after cleaning: {bid}");
+                                    }
+                                }
+                                else
+                                {
+                                    // Handle missing bid value (assign default or skip element)
+                                    Console.WriteLine($"Missing bid value in element: {element}");
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                // Handle potential errors during extraction
+                                Console.WriteLine($"Error extracting data from element: {ex.Message}");
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Handle unexpected data type for pair.Value
+                        Console.WriteLine($"Unexpected data type for returnData: {pair.Value.GetType().Name}");
+                    }
+
+                    // Use the extractedItems list for further processing or display
+                }
+
+                //Console.WriteLine("Tutaj jest przerwa między wierszami! {0}: {1} A tutaj się kończy Value! przy okazji key to {0}", pair.Key, pair.Value);
+                List<Item> modifiedItems = new List<Item>();
+                foreach (Item item in TestItems)
+                {
+                    string newSymbol = item.Symbol?.Split('.')?.FirstOrDefault() ?? "";
+                    modifiedItems.Add(new Item { Symbol = newSymbol, Description = item.Description, Bid = item.Bid });
+                }
+
+                TestItems = modifiedItems; // Update the original list with modified items
+
+                TestItems = TestItems.DistinctBy(item => item.Symbol).ToList();
+            }
+
         });
 
 
@@ -164,38 +262,21 @@
 
     }
 
-    public async Task DownloadData()
+    public void HandleBidClick(float bidValue)
     {
-        string dataText = downloadedData.ToString(); // Get the accumulated data
-        byte[] dataBytes = Encoding.UTF8.GetBytes(dataText); // Convert to byte array
-
-        var fileName = "websocket_data.txt";
-
-        var dataObject = new Dictionary<string, object>()
-        {
-            { "fileName", fileName },
-            { "data", Convert.ToBase64String(dataBytes) } // Encode dataBytes to Base64 string for efficient transfer
-        };
-
-        var jsonData = JsonConvert.SerializeObject(dataObject);
-        var argumentArray = new object[] { jsonData };
-
-        Console.WriteLine("Download file test:", jsonData);
-
-        await JSRuntime.InvokeAsync<object>("downloadFile", argumentArray);
-
-
+        // Implement your logic here using the bidValue parameter
+        // This function will be called when a button is clicked
+        Console.WriteLine($"Bid value clicked: {bidValue}"); // Example output
     }
 
     public void gibAll()
     {
         _message = JsonConvert.SerializeObject(temst);
         _client?.Send(_message);
-        DownloadData();
 
     }
 
 
 
-    
+
 }
