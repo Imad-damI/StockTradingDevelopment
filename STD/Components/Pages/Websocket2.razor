@@ -2,14 +2,16 @@
 @page "/websocket"
 @rendermode InteractiveServer
 @using System.Text;
-@using System.Net.WebSockets
-@using Newtonsoft.Json
-@using Newtonsoft.Json.Linq
+@using System.Net.WebSockets;
+@using Newtonsoft.Json;
+@using MySqlConnector;
+@using Newtonsoft.Json.Linq;
 @using System.Text.Json;
 @using Websocket.Client;
 @using System.Collections.Generic;
 @using Websocket.Client.Threading;
 @using STD.Components.Additions;
+@using STD.Components.Models;
 @implements IAsyncDisposable;
 @inject IJSRuntime JSRuntime
 
@@ -117,7 +119,7 @@ else
     {
 
 
-
+        
         var url = new Uri("wss://ws.xtb.com/demo");
         var StId = "";
         _client = new WebsocketClient(url);
@@ -224,6 +226,7 @@ else
         Console.WriteLine("Starting...");
         await _client.Start();
         Console.WriteLine("Started.");
+        gibAll();
     }
 
     public async ValueTask DisposeAsync()
@@ -264,9 +267,19 @@ else
 
     public void HandleBidClick(float bidValue)
     {
-        // Implement your logic here using the bidValue parameter
-        // This function will be called when a button is clicked
-        Console.WriteLine($"Bid value clicked: {bidValue}"); // Example output
+        // Find the selected item based on bidValue (assuming bidValue is unique)
+        var selectedItem = TestItems.FirstOrDefault(item => item.Bid == bidValue);
+
+        if (selectedItem != null)
+        {
+            // Call helper function to insert data into MySQL database
+            Task.Run(() => mySQLSqlHelperMain.InsertPortfolio(selectedItem.Symbol!, selectedItem.Description!, bidValue));
+            Console.WriteLine($"Bid value clicked and data inserted for: {selectedItem.Symbol}");
+        }
+        else
+        {
+            Console.WriteLine("Could not find matching item for bid value.");
+        }
     }
 
     public void gibAll()
@@ -276,7 +289,9 @@ else
 
     }
 
+    
 
+    
 
 
 }
