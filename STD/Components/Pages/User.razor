@@ -1,5 +1,5 @@
-﻿﻿﻿
-@page "/websocket"
+﻿@page "/user"
+
 @rendermode InteractiveServer
 @using System.Text;
 @using System.Net.WebSockets;
@@ -12,53 +12,61 @@
 @using Websocket.Client.Threading;
 @using STD.Components.Additions;
 @using STD.Components.Models;
-@implements IAsyncDisposable;
+
 @inject IJSRuntime JSRuntime
 
-<h1>Websocket Example</h1>
+<h1>User</h1>
 
-<div class="text-center bg-blue-100">
-    <input class="border-4 w-1/3 rounded m-6 p-6 h-8
-               border-blue-300" @bind-value="SearchText"
-           @bind-value:event="oninput" placeholder="Search by stock name" />
-</div>
-
-@if (!TestItems.Any())
+@if (portfolioItems.Any())
 {
-    <p>Nothing found</p>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Symbol</th>
+                <th>Description</th>
+                <th>Bid</th>
+                <th>Amount</th>
+                <th>Date</th>
+                <th>Current Bid</th>
+                <th>Difference</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in portfolioItems)
+            {
+                var currentItem = TestItems.FirstOrDefault(t => t.Symbol == item.Symbol);
+                item.CurrentBid = currentItem?.Bid ?? 0; // Assign 0 if not found
+
+                <tr>
+                    <td>@item.Symbol</td>
+                    <td>@item.Description</td>
+                    <td>@item.Bid</td>
+                    <td>@item.Amount</td>
+                    <td>@item.Date.ToString("yyyy-MM-dd HH:mm")</td>
+                    <td>@item.CurrentBid</td>
+                    <td>
+                        @if (item.CurrentBid == 0)
+                        {
+                            <span style="color:gray;">loading...</span>
+                        }
+                        else
+                        {
+                            <span style="color:@((item.CurrentBid > item.Bid) ? "green" : "red")">
+                                @((Math.Max(0, item.CurrentBid - item.Bid)))
+                            </span>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
 }
 else
 {
-    @if (SearchText?.Length > 0)
-    {
-        <div class="p-2">
-            @foreach (var item in TestList)
-            {
-                <p>
-                    @item.Symbol - @item.Description (@item.Bid)
-                    <button @onclick="() => ShowQuantityInput(item)">Use Bid</button>
-                </p>
-
-                @if (_selectedItemForQuantity?.Symbol == item.Symbol) // Only show for selected item
-                {
-                    <div>
-                        <input type="number" @bind="_quantityInput" placeholder="Enter quantity" />
-                        <button @onclick="HandleBuyStockClick">Buy Stock</button>
-                    </div>
-                }
-            }
-        </div>
-    }
-    else
-    {
-        <p>Type something to search...</p>
-    }
+    <p>No items found in your portfolio.</p>
 }
+
 <small>Running: @_client?.IsRunning</small>
-
-<button @onclick="gibAll">Get all types</button>
-
-<button @onclick="test5">Show latest 5</button>
 
 @code {
     private readonly List<LogMessage> _logs = new();
@@ -81,6 +89,9 @@ else
     public string SearchText = "";
     public List<Item> TestItems = new List<Item>();
 
+
+    private string StId = "";
+
     public class Item
     {
         public string? Symbol { get; set; }
@@ -98,14 +109,24 @@ else
     .Take(25) // Limit to the first 25 items (optional)
     .ToList();
 
-    private Item? _selectedItemForQuantity;
+    private List<PortfolioItem> portfolioItems = new List<PortfolioItem>();
 
-    private int? _quantityInput;
+    public class PortfolioItem
+    {
+        public int Id { get; set; }
+        public string Symbol { get; set; }
+        public string Description { get; set; }
+        public float Bid { get; set; } // Original bid from portfolio
+        public float CurrentBid { get; set; } // Downloaded current bid from websocket
+        public int Amount { get; set; }
+        public DateTime Date { get; set; }
+    }
+
 
     protected override async Task OnInitializedAsync()
     {
 
-
+        portfolioItems = await GetPortfolioData();
 
         var url = new Uri("wss://ws.xtb.com/demo");
         var StId = "";
@@ -193,8 +214,6 @@ else
 
                     // Use the extractedItems list for further processing or display
                 }
-
-                //Console.WriteLine("Tutaj jest przerwa między wierszami! {0}: {1} A tutaj się kończy Value! przy okazji key to {0}", pair.Key, pair.Value);
                 List<Item> modifiedItems = new List<Item>();
                 foreach (Item item in TestItems)
                 {
@@ -206,6 +225,7 @@ else
 
                 TestItems = TestItems.DistinctBy(item => item.Symbol).ToList();
             }
+            RefreshTableData();
 
         });
 
@@ -247,29 +267,6 @@ else
         Error
     }
 
-    public void test5()
-    {
-
-    }
-
-    public void HandleBidClick(float bidValue, int quantity)
-    {
-        // Find the selected item based on bidValue (assuming bidValue is unique)
-        var selectedItem = TestItems.FirstOrDefault(item => item.Bid == bidValue);
-
-        if (selectedItem != null)
-        {
-            Console.WriteLine($"Quantity value is equal to: {quantity}");
-            // Call helper function to insert data into MySQL database
-            Task.Run(() => mySQLSqlHelperMain.InsertPortfolio(selectedItem.Symbol!, selectedItem.Description!, bidValue, quantity));
-            Console.WriteLine($"Bid value clicked and data inserted for: {selectedItem.Symbol}");
-        }
-        else
-        {
-            Console.WriteLine("Could not find matching item for bid value.");
-        }
-    }
-
     public void gibAll()
     {
         _message = JsonConvert.SerializeObject(temst);
@@ -277,40 +274,45 @@ else
 
     }
 
-    private async Task PromptForQuantity(Item item)
+    private async Task RefreshTableData()
     {
-        int? quantity = await JSRuntime.InvokeAsync<int>("prompt", new object[] { "Enter quantity:", "0" });
+        // Update TestItems with downloaded data
+        // ... (your logic to update TestItems based on downloaded data) ...
 
-        if (quantity.HasValue && quantity.Value > 0)
+        await InvokeAsync(StateHasChanged); // Switch to Dispatcher thread and trigger re-render
+    }
+
+
+    private async Task<List<PortfolioItem>> GetPortfolioData()
+    {
+        using (MySqlConnection connection = mySQLSqlHelper.GetConnection())
         {
-            HandleBidClick(item.Bid, quantity.Value);
-        }
-        else
-        {
-            // Handle invalid quantity input (e.g., display a message)
+            connection.Open();
+            string query = "SELECT * FROM portfolio WHERE user_id = @UserId";
+            using (var cmd = new MySqlCommand(query, connection))
+            {
+                cmd.Parameters.AddWithValue("@UserId", 1);
+                using (var reader = await cmd.ExecuteReaderAsync())
+                {
+                    List<PortfolioItem> items = new List<PortfolioItem>();
+                    while (await reader.ReadAsync())
+                    {
+                        items.Add(new PortfolioItem
+                            {
+                                Id = reader.GetInt32(0),
+                                Symbol = reader.GetString(2),
+                                Description = reader.GetString(3),
+                                Bid = reader.GetFloat(4),
+                                Amount = reader.GetInt32(5),
+                                Date = reader.GetDateTime(6)
+                            });
+                    }
+                    return items;
+                }
+            }
         }
     }
 
-    private void ShowQuantityInput(Item item)
-    {
-        _selectedItemForQuantity = item;
-        _quantityInput = null; // Reset input value for fresh entry
-        StateHasChanged(); // Trigger UI update to show input box
-    }
 
-    private async Task HandleBuyStockClick()
-    {
-        if (_quantityInput.HasValue && _quantityInput.Value > 0)
-        {
-            HandleBidClick(_selectedItemForQuantity!.Bid, _quantityInput.Value);
-            _quantityInput = null; // Reset input after successful buy
-            _selectedItemForQuantity = null;
-            StateHasChanged(); // Hide input box
-        }
-        else
-        {
-            // Handle invalid quantity (e.g., display message)
-            Console.WriteLine("Invalid quantity entered. Please enter a positive integer.");
-        }
-    }
+
 }
