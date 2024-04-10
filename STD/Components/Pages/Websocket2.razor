@@ -207,6 +207,8 @@ else
                 TestItems = TestItems.DistinctBy(item => item.Symbol).ToList();
             }
 
+            
+
         });
 
 
@@ -274,7 +276,7 @@ else
     {
         _message = JsonConvert.SerializeObject(temst);
         _client?.Send(_message);
-
+        InvokeAsync(StateHasChanged);
     }
 
     private async Task PromptForQuantity(Item item)

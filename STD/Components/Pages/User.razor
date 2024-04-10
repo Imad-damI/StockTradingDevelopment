@@ -29,6 +29,7 @@
                 <th>Date</th>
                 <th>Current Bid</th>
                 <th>Difference</th>
+                <th>Action</th>
             </tr>
         </thead>
         <tbody>
@@ -52,9 +53,12 @@
                         else
                         {
                             <span style="color:@((item.CurrentBid > item.Bid) ? "green" : "red")">
-                                @((Math.Max(0, item.CurrentBid - item.Bid)))
+                                @Math.Round(item.CurrentBid - item.Bid, 3)
                             </span>
                         }
+                    </td>
+                    <td>
+                        <button @onclick="@(() => SellStock(item.Id))">Sell</button>
                     </td>
                 </tr>
             }
@@ -69,7 +73,7 @@ else
 <small>Running: @_client?.IsRunning</small>
 
 @code {
-    private readonly List<LogMessage> _logs = new();
+    private readonly List<LogMessage> _logs = new List<LogMessage>();
     private IWebsocketClient? _client;
     private string _message = "ping";
     private JObject o = JObject.Parse(@"{
@@ -83,12 +87,11 @@ else
     }");
 
     private JObject temst = JObject.Parse(@"{
-	    'command': 'getAllSymbols'
+        'command': 'getAllSymbols'
     }");
 
     public string SearchText = "";
     public List<Item> TestItems = new List<Item>();
-
 
     private string StId = "";
 
@@ -98,16 +101,6 @@ else
         public string? Description { get; set; }
         public float Bid { get; set; }
     }
-
-    private List<Item> TestList => TestItems
-    .Where(item =>
-        (item.Description == null || // Optional check for null descriptions
-         !item.Description.ToUpperInvariant().Contains("CFD")) &&
-        ((item.Symbol?.Split('.')?.FirstOrDefault() ?? "").ToLower().Contains(SearchText.ToLower()) ||
-         (item.Description?.ToLower().Contains(SearchText.ToLower()) ?? false))
-    )
-    .Take(25) // Limit to the first 25 items (optional)
-    .ToList();
 
     private List<PortfolioItem> portfolioItems = new List<PortfolioItem>();
 
@@ -122,6 +115,7 @@ else
         public DateTime Date { get; set; }
     }
 
+    public double currentWalletBalance;
 
     protected override async Task OnInitializedAsync()
     {
@@ -312,6 +306,122 @@ else
             }
         }
     }
+
+    private async Task<double> GetWalletBalanceFromDatabase()
+    {
+        using (MySqlConnection connection = mySQLSqlHelper.GetConnection())
+        {
+            try
+            {
+                connection.Open();
+                string query = "SELECT wallet FROM user WHERE id = @UserId";
+                using (var cmd = new MySqlCommand(query, connection))
+                {
+                    cmd.Parameters.AddWithValue("@UserId", 1);
+                    using (var reader = await cmd.ExecuteReaderAsync())
+                    {
+                        if (await reader.ReadAsync())
+                        {
+                            Console.WriteLine("Current wallet according to the GetWalletBalanceFromDatabase" + reader.GetDouble(0));
+                            return reader.GetDouble(0); // Return the fetched wallet balance
+                        }
+                        else
+                        {
+                            // Handle error: user not found or wallet balance not available
+                            Console.WriteLine("Error: User not found or wallet balance not available.");
+                            return 0.0; // Or handle the missing value differently (e.g., throw an exception)
+                        }
+                    }
+                }
+            }
+            catch (MySqlException ex)
+            {
+                // Handle database connection or query exception
+                Console.WriteLine($"Database error: {ex.Message}");
+                return 0.0; // Or handle the error differently (e.g., throw an exception)
+            }
+        }
+    }
+
+    private async Task SellStock(int stockId)
+    {
+        var portfolioItem = portfolioItems.FirstOrDefault(i => i.Id == stockId);
+        if (portfolioItem == null)
+        {
+            // Handle error: item not found in portfolio
+            Console.WriteLine($"Error: Stock with ID {stockId} not found in portfolio.");
+            return;
+        }
+
+        if (portfolioItem.Amount <= 0)
+        {
+            // Handle error: user doesn't have any of this stock
+            Console.WriteLine($"Error: User doesn't have any of stock {portfolioItem.Symbol}.");
+            return;
+        }
+
+        //double currentWalletBalance = await GetWalletBalanceFromDatabase();
+
+        double profit = (Math.Round(portfolioItem.CurrentBid - portfolioItem.Bid, 3) * portfolioItem.Amount);
+
+        // Update user wallet balance in database
+        await updateWalletBalance(profit);
+
+        // Delete stock from portfolio database
+
+        string deleteQuery = "DELETE FROM portfolio WHERE stock_id = @StockId";
+        using (MySqlConnection connection = mySQLSqlHelper.GetConnection())
+        {
+            connection.Open();
+            using (var cmd = new MySqlCommand(deleteQuery, connection))
+            {
+                cmd.Parameters.AddWithValue("@StockId", stockId);
+                await cmd.ExecuteNonQueryAsync();
+            }
+        }
+
+        // Remove the sold item from the portfolio list
+        portfolioItems.Remove(portfolioItem);
+
+        // Refresh the table display
+        await InvokeAsync(StateHasChanged);
+    }
+
+    // Basic updateWalletBalance function (replace with your actual implementation)
+    private async Task updateWalletBalance(double walletUpMoney)
+    {
+        try
+        {
+            double currentBalance = await GetWalletBalanceFromDatabase(); // Await and store the returned value
+            Console.WriteLine("current wallet balance according to the variable currentBalance in updateWalletBalance: " + currentBalance);
+            Console.WriteLine("walletUpMoney: " + walletUpMoney);
+            double newBalance = Math.Round(currentBalance + walletUpMoney, 3);
+            Console.WriteLine("new wallet balance according to the variable newBalance: " + newBalance);
+
+            // Update wallet balance in database
+            string updateQuery = "UPDATE user SET wallet = @NewBalance WHERE Id = @UserId";
+            using (MySqlConnection connection = mySQLSqlHelper.GetConnection())
+            {
+                connection.Open();
+                using (var cmd = new MySqlCommand(updateQuery, connection))
+                {
+                    cmd.Parameters.AddWithValue("@NewBalance", newBalance);
+                    cmd.Parameters.AddWithValue("@UserId", 1);
+                    await cmd.ExecuteNonQueryAsync();
+                }
+            }
+
+            // Notify user about the balance update (optional)
+            currentWalletBalance = await GetWalletBalanceFromDatabase();
+            Console.WriteLine($"Wallet balance updated to: {currentWalletBalance}");
+        }
+        catch (MySqlException ex)
+        {
+            // Handle database update error
+            Console.WriteLine($"Error updating wallet balance: {ex.Message}");
+        }
+    }
+
 
 
 
