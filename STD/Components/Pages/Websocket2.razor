@@ -36,8 +36,17 @@ else
 
                 <p>
                     @item.Symbol - @item.Description (@item.Bid)
-                    <button @onclick="() => HandleBidClick(item.Bid)">Use Bid</button>
+                    <button @onclick="() => ShowQuantityInput(item)">Use Bid</button>
                 </p>
+
+
+                @if (_selectedItemForQuantity?.Symbol == item.Symbol) // Only show for selected item
+                {
+                    <div>
+                        <input type="number" @bind="_quantityInput" placeholder="Enter quantity" />
+                        <button @onclick="HandleBuyStockClick">Buy Stock</button>
+                    </div>
+                }
 
             }
         </div>
@@ -47,28 +56,7 @@ else
         <p>Type something to search...</p>
     }
 }
-
-
-<h3>Connecting to Bitmex server</h3>
 <small>Running: @_client?.IsRunning</small>
-
-@if (_client?.IsRunning == true)
-{
-    <div class="sticky-top w-50 mb-3 mt-3">
-        <form @onsubmit="@SendMessage">
-
-            <div class="input-group">
-                <div class="input-group-prepend">
-                    <span class="input-group-text">Message</span>
-                </div>
-                <input @bind="@_message" type="text" class="form-control">
-                <div class="input-group-append">
-                    <button type="submit" class="btn btn-outline-secondary">Send</button>
-                </div>
-            </div>
-        </form>
-    </div>
-}
 
 <button @onclick="gibAll">Get all types</button>
 
@@ -94,9 +82,6 @@ else
 
     public string SearchText = "";
     public List<Item> TestItems = new List<Item>();
-
-
-    private string StId = "";
 
     public class Item
     {
@@ -136,12 +121,15 @@ else
     .Take(25) // Limit to the first 25 items (optional)
     .ToList();
 
+    private Item? _selectedItemForQuantity;
+
+    private int? _quantityInput;
 
     protected override async Task OnInitializedAsync()
     {
 
 
-        
+
         var url = new Uri("wss://ws.xtb.com/demo");
         var StId = "";
         _client = new WebsocketClient(url);
@@ -281,15 +269,18 @@ else
     {
 
     }
-    public void HandleBidClick(float bidValue)
+      
+    public void HandleBidClick(float bidValue, int quantity)
+
     {
         // Find the selected item based on bidValue (assuming bidValue is unique)
         var selectedItem = TestItems.FirstOrDefault(item => item.Bid == bidValue);
 
         if (selectedItem != null)
         {
+            Console.WriteLine($"Quantity value is equal to: {quantity}");
             // Call helper function to insert data into MySQL database
-            Task.Run(() => mySQLSqlHelperMain.InsertPortfolio(selectedItem.Symbol!, selectedItem.Description!, bidValue));
+            Task.Run(() => mySQLSqlHelperMain.InsertPortfolio(selectedItem.Symbol!, selectedItem.Description!, bidValue, quantity));
             Console.WriteLine($"Bid value clicked and data inserted for: {selectedItem.Symbol}");
         }
         else
@@ -302,6 +293,44 @@ else
     {
         _message = JsonConvert.SerializeObject(temst);
         _client?.Send(_message);
-
+        InvokeAsync(StateHasChanged);
     }
+
+    private async Task PromptForQuantity(Item item)
+    {
+        int? quantity = await JSRuntime.InvokeAsync<int>("prompt", new object[] { "Enter quantity:", "0" });
+
+        if (quantity.HasValue && quantity.Value > 0)
+        {
+            HandleBidClick(item.Bid, quantity.Value);
+        }
+        else
+        {
+            // Handle invalid quantity input (e.g., display a message)
+        }
+    }
+
+    private void ShowQuantityInput(Item item)
+    {
+        _selectedItemForQuantity = item;
+        _quantityInput = null; // Reset input value for fresh entry
+        StateHasChanged(); // Trigger UI update to show input box
+    }
+
+    private async Task HandleBuyStockClick()
+    {
+        if (_quantityInput.HasValue && _quantityInput.Value > 0)
+        {
+            HandleBidClick(_selectedItemForQuantity!.Bid, _quantityInput.Value);
+            _quantityInput = null; // Reset input after successful buy
+            _selectedItemForQuantity = null;
+            StateHasChanged(); // Hide input box
+        }
+        else
+        {
+            // Handle invalid quantity (e.g., display message)
+            Console.WriteLine("Invalid quantity entered. Please enter a positive integer.");
+        }
+    }
+
 }

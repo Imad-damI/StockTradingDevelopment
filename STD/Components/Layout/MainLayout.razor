@@ -1,4 +1,17 @@
-﻿@inherits LayoutComponentBase
+﻿@using System.Text;
+@using System.Net.WebSockets;
+@using Newtonsoft.Json;
+@using MySqlConnector;
+@using Newtonsoft.Json.Linq;
+@using System.Text.Json;
+@using Websocket.Client;
+@using System.Collections.Generic;
+@using Websocket.Client.Threading;
+@using STD.Components.Additions;
+@using STD.Components.Models;
+
+@inherits LayoutComponentBase
+@inject IJSRuntime JSRuntime
 
 <div class="page">
     <div class="sidebar">
@@ -6,8 +19,12 @@
     </div>
 
     <main>
+
         <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+            <a href="user">
+                <img src="~/images/TestJpg.jpg" alt="User Icon" />
+                <p>Wallet: @walletValue</p>
+            </a>
         </div>
 
         <article class="content px-4">
@@ -21,3 +38,53 @@
     <a href="" class="reload">Reload</a>
     <a class="dismiss">🗙</a>
 </div>
+
+@code {
+
+    private double walletValue { get; set; } = 0;  // Initialize to 0
+
+    protected override async Task OnInitializedAsync()
+    {
+        walletValue = await GetWalletBalanceFromDatabase();  // Fetch wallet value on initialization
+    }
+
+    private async Task<double> GetWalletBalanceFromDatabase()
+    {
+        using (MySqlConnection connection = mySQLSqlHelper.GetConnection())
+        {
+            try
+            {
+                connection.Open();
+                string query = "SELECT wallet FROM user WHERE id = @UserId";
+                using (var cmd = new MySqlCommand(query, connection))
+                {
+                    cmd.Parameters.AddWithValue("@UserId", 1);
+                    using (var reader = await cmd.ExecuteReaderAsync())
+                    {
+                        if (await reader.ReadAsync())
+                        {
+                            Console.WriteLine("Current wallet according to the GetWalletBalanceFromDatabase" + reader.GetDouble(0));
+                            return reader.GetDouble(0); // Return the fetched wallet balance
+                        }
+                        else
+                        {
+                            // Handle error: user not found or wallet balance not available
+                            Console.WriteLine("Error: User not found or wallet balance not available.");
+                            return 0.0; // Or handle the missing value differently (e.g., throw an exception)
+                        }
+                    }
+                }
+            }
+            catch (MySqlException ex)
+            {
+                // Handle database connection or query exception
+                Console.WriteLine($"Database error: {ex.Message}");
+                return 0.0; // Or handle the error differently (e.g., throw an exception)
+            }
+        }
+    }
+
+    
+ 
+    
+}

@@ -1,0 +1,428 @@
+﻿@page "/user"
+
+@rendermode InteractiveServer
+@using System.Text;
+@using System.Net.WebSockets;
+@using Newtonsoft.Json;
+@using MySqlConnector;
+@using Newtonsoft.Json.Linq;
+@using System.Text.Json;
+@using Websocket.Client;
+@using System.Collections.Generic;
+@using Websocket.Client.Threading;
+@using STD.Components.Additions;
+@using STD.Components.Models;
+
+@inject IJSRuntime JSRuntime
+
+<h1>User</h1>
+
+@if (portfolioItems.Any())
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Symbol</th>
+                <th>Description</th>
+                <th>Bid</th>
+                <th>Amount</th>
+                <th>Date</th>
+                <th>Current Bid</th>
+                <th>Difference</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in portfolioItems)
+            {
+                var currentItem = TestItems.FirstOrDefault(t => t.Symbol == item.Symbol);
+                item.CurrentBid = currentItem?.Bid ?? 0; // Assign 0 if not found
+
+                <tr>
+                    <td>@item.Symbol</td>
+                    <td>@item.Description</td>
+                    <td>@item.Bid</td>
+                    <td>@item.Amount</td>
+                    <td>@item.Date.ToString("yyyy-MM-dd HH:mm")</td>
+                    <td>@item.CurrentBid</td>
+                    <td>
+                        @if (item.CurrentBid == 0)
+                        {
+                            <span style="color:gray;">loading...</span>
+                        }
+                        else
+                        {
+                            <span style="color:@((item.CurrentBid > item.Bid) ? "green" : "red")">
+                                @Math.Round(item.CurrentBid - item.Bid, 3)
+                            </span>
+                        }
+                    </td>
+                    <td>
+                        <button @onclick="@(() => SellStock(item.Id))">Sell</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+else
+{
+    <p>No items found in your portfolio.</p>
+}
+
+<small>Running: @_client?.IsRunning</small>
+
+@code {
+    private readonly List<LogMessage> _logs = new List<LogMessage>();
+    private IWebsocketClient? _client;
+    private string _message = "ping";
+    private JObject o = JObject.Parse(@"{
+        'command': 'login',
+        'arguments': {
+            'userId': '15864606',
+            'password': 'imad12E4',
+            'appId': 'test',
+            'appName': 'test',
+        }
+    }");
+
+    private JObject temst = JObject.Parse(@"{
+        'command': 'getAllSymbols'
+    }");
+
+    public string SearchText = "";
+    public List<Item> TestItems = new List<Item>();
+
+    private string StId = "";
+
+    public class Item
+    {
+        public string? Symbol { get; set; }
+        public string? Description { get; set; }
+        public float Bid { get; set; }
+    }
+
+    private List<PortfolioItem> portfolioItems = new List<PortfolioItem>();
+
+    public class PortfolioItem
+    {
+        public int Id { get; set; }
+        public string Symbol { get; set; }
+        public string Description { get; set; }
+        public float Bid { get; set; } // Original bid from portfolio
+        public float CurrentBid { get; set; } // Downloaded current bid from websocket
+        public int Amount { get; set; }
+        public DateTime Date { get; set; }
+    }
+
+    public double currentWalletBalance;
+
+    protected override async Task OnInitializedAsync()
+    {
+
+        portfolioItems = await GetPortfolioData();
+
+        var url = new Uri("wss://ws.xtb.com/demo");
+        var StId = "";
+        _client = new WebsocketClient(url);
+
+        _client.Name = "XTB";
+        _client.ReconnectTimeout = TimeSpan.FromSeconds(120);
+        _client.ErrorReconnectTimeout = TimeSpan.FromSeconds(30);
+        _client.ReconnectionHappened.Subscribe(info =>
+        {
+            Console.WriteLine($"Reconnection happened, type: {info.Type}, url: {_client.Url}");
+            Log($"Reconnected, type: '{info.Type}'", LogSeverity.Warning);
+            _message = JsonConvert.SerializeObject(o);
+            _client?.Send(_message);
+
+        });
+        _client.DisconnectionHappened.Subscribe(info =>
+        {
+            Console.WriteLine($"Disconnection happened, type: {info.Type}");
+            Log($"Disconnected, type: '{info.Type}', reason: '{info.CloseStatus}'", LogSeverity.Warning);
+        });
+
+        _client.MessageReceived.Subscribe(msg =>
+        {
+            //Console.WriteLine($"Message received: {msg}");
+            Log($"Received: '{msg.Text}'", LogSeverity.Info);
+            string json2 = JsonConvert.SerializeObject(msg.Text);
+            JObject parsed = JObject.Parse(msg.Text);
+
+            foreach (var pair in parsed)
+            {
+                if (pair.Key == "streamSessionId")
+                {
+                    StId = pair.Value.ToString();
+                    Console.WriteLine("StId: " + StId);
+                }
+                if (pair.Key == "returnData")
+                {
+                    List<Item> extractedItems = new List<Item>();
+
+                    if (pair.Value is JArray symbolRecordsArray)
+                    {
+                        foreach (var element in symbolRecordsArray)
+                        {
+                            try
+                            {
+                                var symbol = element["symbol"]?.Value<string>();
+                                var description = element["description"]?.Value<string>();
+                                var bid = element["bid"].Value<float>();
+
+                                if (bid != 0)
+                                {
+
+                                    // Trim leading/trailing whitespaces (including potential invisible characters)
+
+
+                                    Console.WriteLine("Bid string po parse" + bid);
+                                    if (bid != 0)
+                                    {
+                                        TestItems.Add(new Item { Symbol = symbol, Description = description, Bid = bid });
+                                    }
+                                    else
+                                    {
+                                        Console.WriteLine($"Invalid bid format after cleaning: {bid}");
+                                    }
+                                }
+                                else
+                                {
+                                    // Handle missing bid value (assign default or skip element)
+                                    Console.WriteLine($"Missing bid value in element: {element}");
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                // Handle potential errors during extraction
+                                Console.WriteLine($"Error extracting data from element: {ex.Message}");
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Handle unexpected data type for pair.Value
+                        Console.WriteLine($"Unexpected data type for returnData: {pair.Value.GetType().Name}");
+                    }
+
+                    // Use the extractedItems list for further processing or display
+                }
+                List<Item> modifiedItems = new List<Item>();
+                foreach (Item item in TestItems)
+                {
+                    string newSymbol = item.Symbol?.Split('.')?.FirstOrDefault() ?? "";
+                    modifiedItems.Add(new Item { Symbol = newSymbol, Description = item.Description, Bid = item.Bid });
+                }
+
+                TestItems = modifiedItems; // Update the original list with modified items
+
+                TestItems = TestItems.DistinctBy(item => item.Symbol).ToList();
+            }
+            RefreshTableData();
+
+        });
+
+
+        Console.WriteLine("Starting...");
+        await _client.Start();
+        Console.WriteLine("Started.");
+        gibAll();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_client == null)
+            return;
+
+        await _client.Stop(WebSocketCloseStatus.NormalClosure, string.Empty);
+        _client.Dispose();
+    }
+
+    private void SendMessage()
+    {
+        Log($"Sending: '{_message}'", LogSeverity.Info);
+        _client?.Send(_message);
+    }
+
+    private void Log(string message, LogSeverity severity)
+    {
+        _logs.Add(new LogMessage(message, severity, DateTime.UtcNow));
+    }
+
+    private LogMessage[] GetLogs() => _logs.ToArray().Reverse().ToArray();
+
+    private record LogMessage(string Message, LogSeverity Severity, DateTime Timestamp);
+
+    private enum LogSeverity
+    {
+        Info,
+        Warning,
+        Error
+    }
+
+    public void gibAll()
+    {
+        _message = JsonConvert.SerializeObject(temst);
+        _client?.Send(_message);
+
+    }
+
+    private async Task RefreshTableData()
+    {
+        // Update TestItems with downloaded data
+        // ... (your logic to update TestItems based on downloaded data) ...
+
+        await InvokeAsync(StateHasChanged); // Switch to Dispatcher thread and trigger re-render
+    }
+
+
+    private async Task<List<PortfolioItem>> GetPortfolioData()
+    {
+        using (MySqlConnection connection = mySQLSqlHelper.GetConnection())
+        {
+            connection.Open();
+            string query = "SELECT * FROM portfolio WHERE user_id = @UserId";
+            using (var cmd = new MySqlCommand(query, connection))
+            {
+                cmd.Parameters.AddWithValue("@UserId", 1);
+                using (var reader = await cmd.ExecuteReaderAsync())
+                {
+                    List<PortfolioItem> items = new List<PortfolioItem>();
+                    while (await reader.ReadAsync())
+                    {
+                        items.Add(new PortfolioItem
+                            {
+                                Id = reader.GetInt32(0),
+                                Symbol = reader.GetString(2),
+                                Description = reader.GetString(3),
+                                Bid = reader.GetFloat(4),
+                                Amount = reader.GetInt32(5),
+                                Date = reader.GetDateTime(6)
+                            });
+                    }
+                    return items;
+                }
+            }
+        }
+    }
+
+    private async Task<double> GetWalletBalanceFromDatabase()
+    {
+        using (MySqlConnection connection = mySQLSqlHelper.GetConnection())
+        {
+            try
+            {
+                connection.Open();
+                string query = "SELECT wallet FROM user WHERE id = @UserId";
+                using (var cmd = new MySqlCommand(query, connection))
+                {
+                    cmd.Parameters.AddWithValue("@UserId", 1);
+                    using (var reader = await cmd.ExecuteReaderAsync())
+                    {
+                        if (await reader.ReadAsync())
+                        {
+                            Console.WriteLine("Current wallet according to the GetWalletBalanceFromDatabase" + reader.GetDouble(0));
+                            return reader.GetDouble(0); // Return the fetched wallet balance
+                        }
+                        else
+                        {
+                            // Handle error: user not found or wallet balance not available
+                            Console.WriteLine("Error: User not found or wallet balance not available.");
+                            return 0.0; // Or handle the missing value differently (e.g., throw an exception)
+                        }
+                    }
+                }
+            }
+            catch (MySqlException ex)
+            {
+                // Handle database connection or query exception
+                Console.WriteLine($"Database error: {ex.Message}");
+                return 0.0; // Or handle the error differently (e.g., throw an exception)
+            }
+        }
+    }
+
+    private async Task SellStock(int stockId)
+    {
+        var portfolioItem = portfolioItems.FirstOrDefault(i => i.Id == stockId);
+        if (portfolioItem == null)
+        {
+            // Handle error: item not found in portfolio
+            Console.WriteLine($"Error: Stock with ID {stockId} not found in portfolio.");
+            return;
+        }
+
+        if (portfolioItem.Amount <= 0)
+        {
+            // Handle error: user doesn't have any of this stock
+            Console.WriteLine($"Error: User doesn't have any of stock {portfolioItem.Symbol}.");
+            return;
+        }
+
+        //double currentWalletBalance = await GetWalletBalanceFromDatabase();
+
+        double profit = (Math.Round(portfolioItem.CurrentBid - portfolioItem.Bid, 3) * portfolioItem.Amount);
+
+        // Update user wallet balance in database
+        await updateWalletBalance(profit);
+
+        // Delete stock from portfolio database
+
+        string deleteQuery = "DELETE FROM portfolio WHERE stock_id = @StockId";
+        using (MySqlConnection connection = mySQLSqlHelper.GetConnection())
+        {
+            connection.Open();
+            using (var cmd = new MySqlCommand(deleteQuery, connection))
+            {
+                cmd.Parameters.AddWithValue("@StockId", stockId);
+                await cmd.ExecuteNonQueryAsync();
+            }
+        }
+
+        // Remove the sold item from the portfolio list
+        portfolioItems.Remove(portfolioItem);
+
+        // Refresh the table display
+        await InvokeAsync(StateHasChanged);
+    }
+
+    // Basic updateWalletBalance function (replace with your actual implementation)
+    private async Task updateWalletBalance(double walletUpMoney)
+    {
+        try
+        {
+            double currentBalance = await GetWalletBalanceFromDatabase(); // Await and store the returned value
+            Console.WriteLine("current wallet balance according to the variable currentBalance in updateWalletBalance: " + currentBalance);
+            Console.WriteLine("walletUpMoney: " + walletUpMoney);
+            double newBalance = Math.Round(currentBalance + walletUpMoney, 3);
+            Console.WriteLine("new wallet balance according to the variable newBalance: " + newBalance);
+
+            // Update wallet balance in database
+            string updateQuery = "UPDATE user SET wallet = @NewBalance WHERE Id = @UserId";
+            using (MySqlConnection connection = mySQLSqlHelper.GetConnection())
+            {
+                connection.Open();
+                using (var cmd = new MySqlCommand(updateQuery, connection))
+                {
+                    cmd.Parameters.AddWithValue("@NewBalance", newBalance);
+                    cmd.Parameters.AddWithValue("@UserId", 1);
+                    await cmd.ExecuteNonQueryAsync();
+                }
+            }
+
+            // Notify user about the balance update (optional)
+            currentWalletBalance = await GetWalletBalanceFromDatabase();
+            Console.WriteLine($"Wallet balance updated to: {currentWalletBalance}");
+        }
+        catch (MySqlException ex)
+        {
+            // Handle database update error
+            Console.WriteLine($"Error updating wallet balance: {ex.Message}");
+        }
+    }
+
+
+
+
+}
