@@ -15,11 +15,9 @@
 
 @inject IJSRuntime JSRuntime
 
-<h1>User</h1>
-
 @if (portfolioItems.Any())
 {
-    <table class="table">
+    <table class="table table-striped table-info table-hover">
         <thead>
             <tr>
                 <th>Symbol</th>
@@ -41,10 +39,10 @@
                 <tr>
                     <td>@item.Symbol</td>
                     <td>@item.Description</td>
-                    <td>@item.Bid</td>
+                    <td>@item.Bid zł</td>
                     <td>@item.Amount</td>
                     <td>@item.Date.ToString("yyyy-MM-dd HH:mm")</td>
-                    <td>@item.CurrentBid</td>
+                    <td>@item.CurrentBid zł</td>
                     <td>
                         @if (item.CurrentBid == 0)
                         {
@@ -53,12 +51,12 @@
                         else
                         {
                             <span style="color:@((item.CurrentBid > item.Bid) ? "green" : "red")">
-                                @Math.Round(item.CurrentBid - item.Bid, 3)
+                                @Math.Round(item.CurrentBid - item.Bid, 3) zł
                             </span>
                         }
                     </td>
                     <td>
-                        <button @onclick="@(() => SellStock(item.Id))">Sell</button>
+                        <button class="btn btn-outline-success btn-sm" @onclick="@(() => SellStock(item.Id))">Sell</button>
                     </td>
                 </tr>
             }
@@ -67,14 +65,18 @@
 }
 else
 {
-    <p>No items found in your portfolio.</p>
+    <h1>No items found in your portfolio.</h1>
 }
 
-<small>Running: @_client?.IsRunning</small>
+@*     @if (_client != null)
+    {
+        <span class="@(_client.IsRunning ? "dot-green" : "dot-red")" title="@(_client.IsRunning ? "Running" : "Not Running")">
+        </span>
+    } *@
 
 @code {
     private readonly List<LogMessage> _logs = new List<LogMessage>();
-    private IWebsocketClient? _client;
+    private IWebsocketClient? _client;  
     private string _message = "ping";
     private JObject o = JObject.Parse(@"{
         'command': 'login',
@@ -177,7 +179,6 @@ else
                                     // Trim leading/trailing whitespaces (including potential invisible characters)
 
 
-                                    Console.WriteLine("Bid string po parse" + bid);
                                     if (bid != 0)
                                     {
                                         TestItems.Add(new Item { Symbol = symbol, Description = description, Bid = bid });

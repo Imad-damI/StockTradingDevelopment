@@ -12,6 +12,10 @@
 
 @inherits LayoutComponentBase
 @inject IJSRuntime JSRuntime
+@inject IHostEnvironment Environment
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet" />
+<link href="@Environment.ContentRootPath + " /Shared/MainStyle.css" rel="stylesheet" />
 
 <div class="page">
     <div class="sidebar">
@@ -22,9 +26,10 @@
 
         <div class="top-row px-4">
             <a href="user">
-                <img src="~/images/TestJpg.jpg" alt="User Icon" />
-                <p>Wallet: @walletValue</p>
+                <i class="bi bi-person-lines-fill"></i>
             </a>
+            <p class="link-light px-4 mt-3">Środki: @walletValue zł</p>
+            
         </div>
 
         <article class="content px-4">
@@ -41,11 +46,32 @@
 
 @code {
 
-    private double walletValue { get; set; } = 0;  // Initialize to 0
+    // private bool _iconMenuActive { get; set; }
+    // private string? IconMenuCssClass => _iconMenuActive ? "width: 80px;" : null;
+
+    // protected void ToggleIconMenu(bool iconMenuActive)
+    // {
+    //     _iconMenuActive = iconMenuActive;
+    // }
+
+    private Timer timer;
+    private double walletValue { get; set; } = 0;
 
     protected override async Task OnInitializedAsync()
     {
-        walletValue = await GetWalletBalanceFromDatabase();  // Fetch wallet value on initialization
+        walletValue = await GetWalletBalanceFromDatabase();
+        timer = new Timer(_ => UpdateWalletValue(), null, 0, 1000);
+    }
+
+    private async Task UpdateWalletValue()
+    {
+        walletValue = await GetWalletBalanceFromDatabase();
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        timer?.Dispose();
     }
 
     private async Task<double> GetWalletBalanceFromDatabase()
@@ -63,7 +89,6 @@
                     {
                         if (await reader.ReadAsync())
                         {
-                            Console.WriteLine("Current wallet according to the GetWalletBalanceFromDatabase" + reader.GetDouble(0));
                             return reader.GetDouble(0); // Return the fetched wallet balance
                         }
                         else
