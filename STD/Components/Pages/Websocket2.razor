@@ -1,4 +1,4 @@
-@page "/websocket"
+﻿@page "/websocket"
 @rendermode InteractiveServer
 @using System.Text;
 @using System.Net.WebSockets;
@@ -14,14 +14,12 @@
 @implements IAsyncDisposable;
 @inject IJSRuntime JSRuntime
 
-<h1>Websocket Example</h1>
-
 <div class="text-center bg-blue-100">
-    <input class="border-4 w-1/3 rounded m-6 p-6 h-8
-               border-blue-300" @bind-value="SearchText"
-           @bind-value:event="oninput" placeholder="Search by stock name" />
+    <input class="bg-success bg-opacity-25"
+        @bind-value="SearchText"
+        @bind-value:event="oninput" placeholder="Search by stock name" />
 </div>
-
+<div>
 @if (!TestItems.Any())
 {
     <p>Nothing found</p>
@@ -34,18 +32,18 @@ else
             @foreach (var item in TestList)
             {
 
-                <p>
-                    @item.Symbol - @item.Description (@item.Bid)
-                    <button @onclick="() => ShowQuantityInput(item)">Use Bid</button>
-                </p>
+                    <div class="border border-primary border-opacity-75 rounded bg-info bg-opacity-25 p-1 mb-3 d-flex justify-content-between align-items-center">
+                        <div><p class="my-auto">@item.Symbol - @item.Description (@item.Bid zł)</p></div>
+                        <div><button class="btn btn-outline-success btn-sm" @onclick="() => ShowQuantityInput(item)">Use Bid</button></div>
+                </div>
 
 
                 @if (_selectedItemForQuantity?.Symbol == item.Symbol) // Only show for selected item
                 {
-                    <div>
-                        <input type="number" @bind="_quantityInput" placeholder="Enter quantity" />
-                        <button @onclick="HandleBuyStockClick">Buy Stock</button>
-                    </div>
+                        <div class="d-flex align-items-center  mb-2">
+                            <input class="bg-info bg-opacity-10 p-1" type="number" @bind="_quantityInput" placeholder="Enter quantity" />
+                            <button class="btn btn-outline-success btn-sm p-1 ms-4" @onclick="HandleBuyStockClick">Buy Stock</button>
+                        </div>
                 }
 
             }
@@ -56,13 +54,13 @@ else
         <p>Type something to search...</p>
     }
 }
-<small>Running: @_client?.IsRunning</small>
+</div>
+<span class="@(_client.IsRunning ? "dot-green" : "dot-red")" title="@(_client.IsRunning ? "Running" : "Not Running")">
+</span>
 
-<button @onclick="gibAll">Get all types</button>
-
-<button @onclick="test5">Show latest 5</button>
 
 @code {
+    private bool IsCandlestickSelected { get; set; } = true;
     private readonly List<LogMessage> _logs = new();
     private IWebsocketClient? _client;
     private string _message = "ping";
@@ -76,33 +74,59 @@ else
         }
     }");
 
+    public class CHART_LAST_INFO_RECORD
+    {
+        public int Period { get; set; }
+        public double Start { get; set; }  // Changed to long for seconds since 1970
+        public string SymbolC { get; set; }
+
+        public CHART_LAST_INFO_RECORD(int period, string symbol)
+        {
+            Period = period;
+            Start = TimeZoneInfo.ConvertTimeToUtc(DateTime.Now.AddDays(-1), TimeZoneInfo.FindSystemTimeZoneById("Central European Standard Time")).Subtract(new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
+            SymbolC = symbol;
+        }
+    }
+
+    private JObject? can;
+
+    public void canWeCandle()
+    {
+        int period = 5; // Replace with your desired period
+        string symbol = "PKN.PL"; // Replace with your symbol
+
+        // Create an instance of CHART_LAST_INFO_RECORD
+        CHART_LAST_INFO_RECORD info = new CHART_LAST_INFO_RECORD(period, symbol);
+
+        // Serialize the info object to JSON string
+        string jsonString = JsonConvert.SerializeObject(info);
+
+        can = JObject.Parse(@"{
+          'command': 'getChartLastRequest',
+          'arguments': {
+            'info': " + jsonString + @"
+          }
+        }");
+    }
+
+
     private JObject temst = JObject.Parse(@"{
 	    'command': 'getAllSymbols'
     }");
 
+    public class StockCandle
+    {
+        public DateTime Date { get; set; }
+        public double Open { get; set; }
+        public double High { get; set; }
+        public double Low { get; set; }
+        public double Close { get; set; }
+        public long Volume { get; set; }
+    }
+
     public string SearchText = "";
     public List<Item> TestItems = new List<Item>();
 
-    public class Item
-    {
-        public string? Symbol { get; set; }
-        public string? Description { get; set; }
-        public float Bid { get; set; }
-    }
-
-    private List<Item> TestList => TestItems
-    .Where(item =>
-        (item.Description == null || // Optional check for null descriptions
-        !item.Description.ToUpperInvariant().Contains("CFD")) &&
-        ((item.Symbol?.ToLower().Contains(SearchText.ToLower()) ?? false) ||
-        (item.Description?.ToLower().Contains(SearchText.ToLower()) ?? false))
-    )
-    .Take(25) // Limit to the first 25 items
-    .ToList();
-
-
-
-    private string StId = "";
 
     public class Item
     {
@@ -153,18 +177,12 @@ else
 
         _client.MessageReceived.Subscribe(msg =>
         {
-            //Console.WriteLine($"Message received: {msg}");
             Log($"Received: '{msg.Text}'", LogSeverity.Info);
             string json2 = JsonConvert.SerializeObject(msg.Text);
             JObject parsed = JObject.Parse(msg.Text);
 
             foreach (var pair in parsed)
             {
-                if (pair.Key == "streamSessionId")
-                {
-                    StId = pair.Value.ToString();
-                    Console.WriteLine("StId: " + StId);
-                }
                 if (pair.Key == "returnData")
                 {
                     List<Item> extractedItems = new List<Item>();
@@ -181,7 +199,6 @@ else
 
                                 if (bid != 0)
                                 {
-                                    Console.WriteLine("Bid string po parse" + bid);
                                     if (bid != 0)
                                     {
                                         TestItems.Add(new Item { Symbol = symbol, Description = description, Bid = bid });
@@ -209,11 +226,7 @@ else
                         // Handle unexpected data type for pair.Value
                         Console.WriteLine($"Unexpected data type for returnData: {pair.Value.GetType().Name}");
                     }
-
-                    // Use the extractedItems list for further processing or display
                 }
-
-                //Console.WriteLine("Tutaj jest przerwa między wierszami! {0}: {1} A tutaj się kończy Value! przy okazji key to {0}", pair.Key, pair.Value);
                 List<Item> modifiedItems = new List<Item>();
                 foreach (Item item in TestItems)
                 {
@@ -267,7 +280,8 @@ else
 
     public void test5()
     {
-
+        canWeCandle();
+        Console.WriteLine("canWeCandle Json: " + can);
     }
       
     public void HandleBidClick(float bidValue, int quantity)
@@ -312,10 +326,21 @@ else
 
     private void ShowQuantityInput(Item item)
     {
-        _selectedItemForQuantity = item;
-        _quantityInput = null; // Reset input value for fresh entry
-        StateHasChanged(); // Trigger UI update to show input box
+        if (_selectedItemForQuantity == null)
+        {
+            // No item selected, proceed as usual
+            _selectedItemForQuantity = item;
+            _quantityInput = null; // Reset input value for fresh entry
+        }
+        else
+        {
+            // Item already selected, deselect it
+            _selectedItemForQuantity = null;
+            _quantityInput = null; // Reset input value on deselection
+        }
+        StateHasChanged(); // Trigger UI update
     }
+
 
     private async Task HandleBuyStockClick()
     {
