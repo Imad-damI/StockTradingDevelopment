@@ -9,10 +9,14 @@
 @using Websocket.Client;
 @using System.Collections.Generic;
 @using Websocket.Client.Threading;
-@using STD.Components.Additions;
 @using STD.Components.Models;
+@using STD;
+
 @implements IAsyncDisposable;
-@inject IJSRuntime JSRuntime
+@inject IJSRuntime JSRuntime;
+
+
+<InfoCardModal></InfoCardModal>
 
 <div class="text-center bg-blue-100">
     <input class="bg-success bg-opacity-25"
@@ -57,6 +61,7 @@ else
 </div>
 <span class="@(_client.IsRunning ? "dot-green" : "dot-red")" title="@(_client.IsRunning ? "Running" : "Not Running")">
 </span>
+
 
 
 @code {

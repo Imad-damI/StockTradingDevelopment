@@ -1,0 +1,39 @@
+﻿@rendermode InteractiveServer
+@using System.Threading.Tasks;
+
+@inject IJSRuntime JSRuntime;
+
+
+<div class="modal fade" id="infoCardModal" tabindex="-1" aria-labelledby="infoCardModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content  bg-info opacity-75 border">
+            <div class="modal-header">
+                <h5 class="modal-title" id="infoCardModalLabel">How This Site Works</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>
+                    (Replace this text with a clear and detailed explanation of your site's functionality.)
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+
+    public async Task ShowModal()
+    {
+        await JSRuntime.InvokeVoidAsync("showInfoCardModal");
+    }
+}
+
+<div class="modal fade" id="infoCardModal" tabindex="-1" aria-labelledby="infoCardModalLabel" aria-hidden="true">
+</div>
+
+<button type="button" class="btn btn-link" @onclick="@ShowModal">
+    <i class="bi bi-question-circle"></i> Help
+</button>
