@@ -1,0 +1,132 @@
+﻿@page "/history"
+
+@rendermode InteractiveServer
+@using System.Text;
+@using System.Net.WebSockets;
+@using Newtonsoft.Json;
+@using MySqlConnector;
+@using Newtonsoft.Json.Linq;
+@using System.Text.Json;
+@using Websocket.Client;
+@using System.Collections.Generic;
+@using Websocket.Client.Threading;
+@using STD.Components.Models;
+
+@inject IJSRuntime JSRuntime
+
+<InfoCardModalHistory></InfoCardModalHistory>
+
+@if (portfolioItems.Any())
+{
+    <table class="table table-striped table-info table-hover">
+        <thead>
+            <tr>
+                <th>Symbol</th>
+                <th>Opis</th>
+                <th>Cena w momencie zakupu</th>
+                <th>Ilość</th>
+                <th>Data zakupu</th>
+                <th>Data sprzedaży</th>
+                <th>Profit całkowity</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in portfolioItems)
+            {
+                var currentItem = TestItems.FirstOrDefault(t => t.Symbol == item.Symbol);
+
+                <tr>
+                    <td>@item.Symbol</td>
+                    <td>@item.Description</td>
+                    <td>@item.Bid zł</td>
+                    <td>@item.Amount</td>
+                    <td>@item.Date.ToString("yyyy-MM-dd HH:mm")</td>
+                    <td>@item.Sell_Date.ToString("yyyy-MM-dd HH:mm")</td>
+                    <td>
+                            <span style="color:@((0 < item.Profit) ? "green" : "red")">
+                                @Math.Round(item.Profit, 3) zł
+                            </span>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+else
+{
+    <h1 class="text-sm-center">Portfolio jest puste.</h1>
+}
+
+@code {
+    public List<Item> TestItems = new List<Item>();
+
+    public class Item
+    {
+        public string? Symbol { get; set; }
+        public string? Description { get; set; }
+        public float Bid { get; set; }
+    }
+
+    private List<PortfolioItem> portfolioItems = new List<PortfolioItem>();
+
+    public class PortfolioItem
+    {
+        public int Id { get; set; }
+        public string Symbol { get; set; }
+        public string Description { get; set; }
+        public float Bid { get; set; }
+        public int Amount { get; set; }
+        public DateTime Date { get; set; }
+        public DateTime Sell_Date { get; set; }
+        public float Profit { get; set; }
+    }
+
+    public double currentWalletBalance;
+
+    protected override async Task OnInitializedAsync()
+    {
+        portfolioItems = await GetPortfolioData();
+    }
+
+    private async Task RefreshTableData()
+    {
+        await InvokeAsync(StateHasChanged); // Switch to Dispatcher thread and trigger re-render
+    }
+
+
+    private async Task<List<PortfolioItem>> GetPortfolioData()
+    {
+        using (MySqlConnection connection = mySQLSqlHelper.GetConnection())
+        {
+            connection.Open();
+            string query = "SELECT * FROM history WHERE user_id = @UserId";
+            using (var cmd = new MySqlCommand(query, connection))
+            {
+                cmd.Parameters.AddWithValue("@UserId", 1);
+                using (var reader = await cmd.ExecuteReaderAsync())
+                {
+                    List<PortfolioItem> items = new List<PortfolioItem>();
+                    while (await reader.ReadAsync())
+                    {
+                        items.Add(new PortfolioItem
+                            {
+                                Id = reader.GetInt32(0),
+                                Symbol = reader.GetString(2),
+                                Description = reader.GetString(3),
+                                Bid = reader.GetFloat(4),
+                                Amount = reader.GetInt32(5),
+                                Date = reader.GetDateTime(6),
+                                Sell_Date = reader.GetDateTime(7),
+                                Profit = reader.GetFloat(8)
+                            });
+                    }
+                    return items;
+                }
+            }
+        }
+    }
+
+
+
+
+}

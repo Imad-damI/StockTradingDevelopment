@@ -29,6 +29,7 @@
 
   <ItemGroup>
     <Folder Include="Components\Services\" />
+    <Folder Include="wwwroot\scss\" />
     <Folder Include="wwwroot\Shared\" />
   </ItemGroup>
 
