@@ -10,10 +10,11 @@
 @using Websocket.Client;
 @using System.Collections.Generic;
 @using Websocket.Client.Threading;
-@using STD.Components.Additions;
 @using STD.Components.Models;
 
 @inject IJSRuntime JSRuntime
+
+<InfoCardModalUser></InfoCardModalUser>
 
 @if (portfolioItems.Any())
 {
@@ -21,20 +22,21 @@
         <thead>
             <tr>
                 <th>Symbol</th>
-                <th>Description</th>
-                <th>Bid</th>
-                <th>Amount</th>
-                <th>Date</th>
-                <th>Current Bid</th>
-                <th>Difference</th>
-                <th>Action</th>
+                <th>Opis</th>
+                <th>Cena w momencie zakupu</th>
+                <th>Ilość</th>
+                <th>Data zakupu</th>
+                <th>Obecna cena</th>
+                <th>Profit za akcję</th>
+                <th>Profit całkowity</th>
+                <th></th>
             </tr>
         </thead>
         <tbody>
             @foreach (var item in portfolioItems)
             {
                 var currentItem = TestItems.FirstOrDefault(t => t.Symbol == item.Symbol);
-                item.CurrentBid = currentItem?.Bid ?? 0; // Assign 0 if not found
+                item.CurrentBid = currentItem?.Bid ?? 0;
 
                 <tr>
                     <td>@item.Symbol</td>
@@ -56,7 +58,19 @@
                         }
                     </td>
                     <td>
-                        <button class="btn btn-outline-success btn-sm" @onclick="@(() => SellStock(item.Id))">Sell</button>
+                        @if (item.CurrentBid == 0)
+                        {
+                            <span style="color:gray;">loading...</span>
+                        }
+                        else
+                        {
+                            <span style="color:@((item.CurrentBid > item.Bid) ? "green" : "red")">
+                                @Math.Round((item.CurrentBid - item.Bid)*item.Amount, 3) zł
+                            </span>
+                        }
+                    </td>
+                    <td>
+                        <button class="btn btn-outline-success btn-sm" @onclick="@(() => SellStock(item.Id))">Sprzedaj</button>
                     </td>
                 </tr>
             }
@@ -65,14 +79,11 @@
 }
 else
 {
-    <h1>No items found in your portfolio.</h1>
+    <h1 class="text-sm-center">Portfolio jest puste.</h1>
 }
 
-@*     @if (_client != null)
-    {
-        <span class="@(_client.IsRunning ? "dot-green" : "dot-red")" title="@(_client.IsRunning ? "Running" : "Not Running")">
-        </span>
-    } *@
+<span class="@(_client.IsRunning ? "dot-green" : "dot-red") position-absolute bottom-0 end-0" title="@(_client.IsRunning ? "Running" : "Not Running")">
+</span>
 
 @code {
     private readonly List<LogMessage> _logs = new List<LogMessage>();
@@ -91,11 +102,7 @@ else
     private JObject temst = JObject.Parse(@"{
         'command': 'getAllSymbols'
     }");
-
-    public string SearchText = "";
     public List<Item> TestItems = new List<Item>();
-
-    private string StId = "";
 
     public class Item
     {
@@ -111,8 +118,8 @@ else
         public int Id { get; set; }
         public string Symbol { get; set; }
         public string Description { get; set; }
-        public float Bid { get; set; } // Original bid from portfolio
-        public float CurrentBid { get; set; } // Downloaded current bid from websocket
+        public float Bid { get; set; }
+        public float CurrentBid { get; set; }
         public int Amount { get; set; }
         public DateTime Date { get; set; }
     }
@@ -121,12 +128,13 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-
-        portfolioItems = await GetPortfolioData();
-
         var url = new Uri("wss://ws.xtb.com/demo");
         var StId = "";
         _client = new WebsocketClient(url);
+
+        portfolioItems = await GetPortfolioData();
+
+
 
         _client.Name = "XTB";
         _client.ReconnectTimeout = TimeSpan.FromSeconds(120);
@@ -147,18 +155,11 @@ else
 
         _client.MessageReceived.Subscribe(msg =>
         {
-            //Console.WriteLine($"Message received: {msg}");
             Log($"Received: '{msg.Text}'", LogSeverity.Info);
-            string json2 = JsonConvert.SerializeObject(msg.Text);
             JObject parsed = JObject.Parse(msg.Text);
 
             foreach (var pair in parsed)
             {
-                if (pair.Key == "streamSessionId")
-                {
-                    StId = pair.Value.ToString();
-                    Console.WriteLine("StId: " + StId);
-                }
                 if (pair.Key == "returnData")
                 {
                     List<Item> extractedItems = new List<Item>();
@@ -176,9 +177,6 @@ else
                                 if (bid != 0)
                                 {
 
-                                    // Trim leading/trailing whitespaces (including potential invisible characters)
-
-
                                     if (bid != 0)
                                     {
                                         TestItems.Add(new Item { Symbol = symbol, Description = description, Bid = bid });
@@ -190,8 +188,7 @@ else
                                 }
                                 else
                                 {
-                                    // Handle missing bid value (assign default or skip element)
-                                    Console.WriteLine($"Missing bid value in element: {element}");
+
                                 }
                             }
                             catch (Exception ex)
@@ -367,6 +364,10 @@ else
 
         // Update user wallet balance in database
         await updateWalletBalance(profit);
+
+        // Add to history
+
+        await mySQLSqlHelperUser.InsertHistory(portfolioItem.Symbol!, portfolioItem.Description!, portfolioItem.Bid!, portfolioItem.Amount, portfolioItem.Date, Convert.ToSingle(profit));
 
         // Delete stock from portfolio database
 

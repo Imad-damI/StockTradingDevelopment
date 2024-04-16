@@ -9,7 +9,10 @@ using STD.Components.Models;
 using STD.Data;
 
 
+
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddBlazorBootstrap();
 
 builder.Services.AddControllers();
 
@@ -22,6 +25,7 @@ builder.Services.AddRazorComponents()
 builder.Services.AddSignalR();
 
 builder.Services.AddSingleton<UserMasterDetailService>();
+
 
 var app = builder.Build();
 

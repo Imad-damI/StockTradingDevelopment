@@ -7,7 +7,6 @@
 @using Websocket.Client;
 @using System.Collections.Generic;
 @using Websocket.Client.Threading;
-@using STD.Components.Additions;
 @using STD.Components.Models;
 
 @inherits LayoutComponentBase
@@ -15,7 +14,6 @@
 @inject IHostEnvironment Environment
 
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet" />
-<link href="@Environment.ContentRootPath + " /Shared/MainStyle.css" rel="stylesheet" />
 
 <div class="page">
     <div class="sidebar">
@@ -26,9 +24,9 @@
 
         <div class="top-row px-4">
             <a href="user">
-                <i class="bi bi-person-lines-fill"></i>
+                <i class="link-info bi bi-person-lines-fill"></i>
             </a>
-            <p class="link-light px-4 mt-3">Środki: @walletValue zł</p>
+            <p class="link-light px-4 mt-3">Środki: @Math.Round(@walletValue, 2) zł</p>
             
         </div>
 
@@ -45,14 +43,6 @@
 </div>
 
 @code {
-
-    // private bool _iconMenuActive { get; set; }
-    // private string? IconMenuCssClass => _iconMenuActive ? "width: 80px;" : null;
-
-    // protected void ToggleIconMenu(bool iconMenuActive)
-    // {
-    //     _iconMenuActive = iconMenuActive;
-    // }
 
     private Timer timer;
     private double walletValue { get; set; } = 0;

@@ -1,0 +1,61 @@
+﻿@rendermode InteractiveServer
+@using System.Threading.Tasks;
+
+@inject IJSRuntime JSRuntime;
+
+
+<div class="modal fade" id="infoCardModal" tabindex="-1" aria-labelledby="infoCardModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content  bg-info opacity-100 border">
+            <div class="modal-header">
+                <h5 class="modal-title" id="infoCardModalLabel">Jak działa strona giełdy.</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+            </div>
+            <div class="modal-body modal-lg">
+                <p>
+                    Witaj na podstronie <b>Giełda!</b>
+                </p>
+
+                <p class="text-black">
+                    Aktualnie znajdujsze się na <b>Stronie Giełdy.</b> W tym miejscu możesz sprawdzić oraz "zakupić" dostępne na rynku akcje.
+                    Strona na początku wydaje się pusta, jednak spróbuj wpisać nazwę znanej Ci firmy, takiej jak Microsoft czy Tesla, w polu wyszukiwania.
+                    (Jeżeli z jakiegoś powodu nic Ci się nie wyświetliło, spróbuj usunąć i wpisać nazwę jeszcze raz, lub odświeżyć stronę i odczekać chwilę na pobranie danych)
+                    <br /><br />
+
+                    <b>Wyszukiwanie akcji -</b> Po wpisaniu nazwy spółki, powinna wyświetlić Ci się lista akcji spółek spełniających to co zostało wpisane w pole wyszukiwania.
+                    Wyświetlane są: <b>Symbol - </b>Symbol akcji spółki, <b>Nazwa - </b>Pełna nazwa oraz opis akcji, <b>Cena - </b>Aktualna cena jednej akcji.
+                    <br><br>
+                    <b>Kupowanie akcji -</b> Jak możesz zauważyć, po prawej stronie znajduje się przycisk "Wybierz". 
+                    Po wciśnięciu go, zostaniesz poproszony o wpisanie ilości akcji jakie chcesz kupić. Wpisz całkowitą, dodatnią liczbę. Wpisanie 0 nie zadziała.<br>
+                    Po zrobieniu tego, wciśnij przycisk "Kup akcje" aby potwierdzić zakup wybranej akcji.<br /><br />
+
+                    Jeżeli wszystko przebiegło dobrze, akcja została właśnie przypisana do twojego portfolio. Zobaczyć je możesz na podstronie <b>Użytkownik.</b>
+
+                    <br><br>
+
+                    <b>Miłego inwestowania!</b><br><br>
+
+                    ps. To zielone kółko w prawym dolnym rogu strony mówi, czy aktualnie jest się połączonym z giełdą. Zielone jeśli tak, czerwone jeśli nie.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Zamknij</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+
+    public async Task ShowModal()
+    {
+        await JSRuntime.InvokeVoidAsync("showInfoCardModal");
+    }
+}
+
+<div class="modal fade" id="infoCardModal" tabindex="-1" aria-labelledby="infoCardModalLabel" aria-hidden="true">
+</div>
+
+<button type="button" class="btn btn-link" @onclick="@ShowModal">
+    <i class="bi bi-question-circle-fill h4"></i>
+</button>

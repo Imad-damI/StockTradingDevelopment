@@ -1,0 +1,56 @@
+﻿@rendermode InteractiveServer
+@using System.Threading.Tasks;
+
+@inject IJSRuntime JSRuntime;
+
+
+<div class="modal fade" id="infoCardModal" tabindex="-1" aria-labelledby="infoCardModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content  bg-info opacity-100 border">
+            <div class="modal-header">
+                <h5 class="modal-title" id="infoCardModalLabel">Jak działa ta strona.</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+            </div>
+            <div class="modal-body modal-lg">
+                <p>
+                    W tym krótkim objaśnieniu, wytłumaczone zostaną Ci podstawy działania strony Stock Trading Development
+                </p>
+
+                <p class="text-black">
+                    Aktualnie znajdujsze się na <b>Stronie głównej.</b> To tutaj trafiasz po wejściu na stronę. Z lewej strony możesz zobaczyć <b>Menu nawigacyjne. </b>
+                    To właśnie tam możesz kliknąć, aby przenieść się na inną podstronę. Są to:<br /><br />
+
+                    <b>Giełda -</b> Podstrona na której możesz sprawdzić aktualne 
+                    ceny akcji dostępnych na giełdzie. Możesz tam również "zakupić" te akcje. Jako darmowa strona, przeznaczona wyłącznie do treningu, Stock Trading Development 
+                    nie pozwala na prawdziwe inwestycje. Wszystkie kupione akcje są wirtualne. Jednak ich nazwy, jak i aktualna cena, są prawdziwe.<br /><br />
+
+                    <b>Użytkownik -</b> Ta podstrona pozwala Ci sprawdzić aktualnie posiadane przez Ciebie akcje, ich aktualną wartość, oraz profit jaki został uzyskany przez Ciebie od czasu ich zakupu. 
+                    Na tej stronie możesz również sprzedać posiadane akcje, aby dołączyć ich profit do swojego portfela.
+                    Więcej informacji znajdziesz na poradniku każdej podstrony. Ikonka na lewo od portfela również przenosi do tej podstrony.<br /><br />
+
+                    Śmiało możesz teraz kliknąć w którykolwiek link nawigacyjny. Pamiętaj, że na każdej stronie możesz kliknąć przycisk pomocy, aby otrzymać porady.<br><br>
+
+                    <b>Miłego inwestowania!</b>
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Zamknij</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+
+    public async Task ShowModal()
+    {
+        await JSRuntime.InvokeVoidAsync("showInfoCardModal");
+    }
+}
+
+<div class="modal fade" id="infoCardModal" tabindex="-1" aria-labelledby="infoCardModalLabel" aria-hidden="true">
+</div>
+
+<button type="button" class="btn btn-link" @onclick="@ShowModal">
+    <i class="bi bi-question-circle-fill h4"></i>
+</button>

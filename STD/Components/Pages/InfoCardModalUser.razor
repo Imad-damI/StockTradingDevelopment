@@ -1,0 +1,59 @@
+﻿@rendermode InteractiveServer
+@using System.Threading.Tasks;
+
+@inject IJSRuntime JSRuntime;
+
+
+<div class="modal fade" id="infoCardModal" tabindex="-1" aria-labelledby="infoCardModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content  bg-info opacity-100 border">
+            <div class="modal-header">
+                <h5 class="modal-title" id="infoCardModalLabel">Jak działa strona giełdy.</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+            </div>
+            <div class="modal-body modal-lg">
+                <p>
+                    Witaj na podstronie <b>Użytkownik!</b>
+                </p>
+
+                <p class="text-black">
+                    Aktualnie znajdujsze się na <b>Stronie Użytkownika.</b> W tym miejscu możesz sprawdzić oraz "sprzedać" zakupione wcześniej akcje.
+                    Jeżeli nie zostały zakupione żadne akcje, strona wyświetli jedynie napis "Portfolio jest puste".
+                    (Jeżeli z jakiegoś powodu nic Ci się nie wyświetliło, spróbuj odświeżyć stronę i odczekać chwilę na pobranie danych)
+                    <br /><br />
+
+                    <b>Sprzedaż akcji -</b> Jak możesz zauważyć, po prawej stronie znajduje się przycisk "Sprzedaj".
+                    Po wciśnięciu go, posiadane akcje zostaną natychmiast sprzedane. Dla wygody działania i szybkiej sprzedaży dużej ilości różnorodnych akcji, nie ma zapytania o pewność użytkownika, więc klikaj ostrożnie!<br>
+                    Po zrobieniu tego, akcja zniknie, a profit zostanie pomnożony przez ilość posiadanych akcji i dodany do portfela.
+                    Aby odświeżyć portfel, załaduj ponownie stronę, albo udaj się na inną podstronę.<br /><br />
+
+                    Jeżeli wszystko przebiegło dobrze, akcja została właśnie sprzedana, a wartość profitu, dodatnia lub ujemna, została dodana do wartości portfela. Zobaczyć ją możesz na <b>górnym pasku po prawej stronie.</b>
+
+                    <br><br>
+
+                    <b>Miłego inwestowania!</b><br><br>
+
+                    ps. To zielone kółko w prawym dolnym rogu strony mówi, czy aktualnie jest się połączonym z giełdą. Zielone jeśli tak, czerwone jeśli nie.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Zamknij</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+
+    public async Task ShowModal()
+    {
+        await JSRuntime.InvokeVoidAsync("showInfoCardModal");
+    }
+}
+
+<div class="modal fade" id="infoCardModal" tabindex="-1" aria-labelledby="infoCardModalLabel" aria-hidden="true">
+</div>
+
+<button type="button" class="btn btn-link" @onclick="@ShowModal">
+    <i class="bi bi-question-circle-fill h4"></i>
+</button>

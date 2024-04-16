@@ -9,20 +9,24 @@
 @using Websocket.Client;
 @using System.Collections.Generic;
 @using Websocket.Client.Threading;
-@using STD.Components.Additions;
 @using STD.Components.Models;
+@using STD;
+
 @implements IAsyncDisposable;
-@inject IJSRuntime JSRuntime
+@inject IJSRuntime JSRuntime;
+
+
+<InfoCardModal></InfoCardModal>
 
 <div class="text-center bg-blue-100">
     <input class="bg-success bg-opacity-25"
         @bind-value="SearchText"
-        @bind-value:event="oninput" placeholder="Search by stock name" />
+        @bind-value:event="oninput" placeholder="Wyszukaj po nazwie spółki" />
 </div>
 <div>
 @if (!TestItems.Any())
 {
-    <p>Nothing found</p>
+    <p>Nic nie znaleziono...</p>
 }
 else
 {
@@ -33,16 +37,16 @@ else
             {
 
                     <div class="border border-primary border-opacity-75 rounded bg-info bg-opacity-25 p-1 mb-3 d-flex justify-content-between align-items-center">
-                        <div><p class="my-auto">@item.Symbol - @item.Description (@item.Bid zł)</p></div>
-                        <div><button class="btn btn-outline-success btn-sm" @onclick="() => ShowQuantityInput(item)">Use Bid</button></div>
+                        <div><p class="my-auto"><b>@item.Symbol</b> - @item.Description (@item.Bid zł)</p></div>
+                        <div><button class="btn btn-outline-success btn-sm" @onclick="() => ShowQuantityInput(item)">Wybierz</button></div>
                 </div>
 
 
                 @if (_selectedItemForQuantity?.Symbol == item.Symbol) // Only show for selected item
                 {
                         <div class="d-flex align-items-center  mb-2">
-                            <input class="bg-info bg-opacity-10 p-1" type="number" @bind="_quantityInput" placeholder="Enter quantity" />
-                            <button class="btn btn-outline-success btn-sm p-1 ms-4" @onclick="HandleBuyStockClick">Buy Stock</button>
+                            <input class="bg-info bg-opacity-10 p-1" type="number" @bind="_quantityInput" placeholder="Wpisz ilość" />
+                            <button class="btn btn-outline-success btn-sm p-1 ms-4" @onclick="HandleBuyStockClick">Kup akcje</button>
                         </div>
                 }
 
@@ -51,12 +55,13 @@ else
     }
     else
     {
-        <p>Type something to search...</p>
+        <p>Wpisz coś by wyszukać...</p>
     }
 }
 </div>
-<span class="@(_client.IsRunning ? "dot-green" : "dot-red")" title="@(_client.IsRunning ? "Running" : "Not Running")">
+<span class="@(_client.IsRunning ? "dot-green" : "dot-red") position-absolute bottom-0 end-0" title="@(_client.IsRunning ? "Running" : "Not Running")">
 </span>
+
 
 
 @code {
@@ -77,7 +82,7 @@ else
     public class CHART_LAST_INFO_RECORD
     {
         public int Period { get; set; }
-        public double Start { get; set; }  // Changed to long for seconds since 1970
+        public double Start { get; set; }
         public string SymbolC { get; set; }
 
         public CHART_LAST_INFO_RECORD(int period, string symbol)
@@ -88,41 +93,10 @@ else
         }
     }
 
-    private JObject? can;
-
-    public void canWeCandle()
-    {
-        int period = 5; // Replace with your desired period
-        string symbol = "PKN.PL"; // Replace with your symbol
-
-        // Create an instance of CHART_LAST_INFO_RECORD
-        CHART_LAST_INFO_RECORD info = new CHART_LAST_INFO_RECORD(period, symbol);
-
-        // Serialize the info object to JSON string
-        string jsonString = JsonConvert.SerializeObject(info);
-
-        can = JObject.Parse(@"{
-          'command': 'getChartLastRequest',
-          'arguments': {
-            'info': " + jsonString + @"
-          }
-        }");
-    }
-
 
     private JObject temst = JObject.Parse(@"{
 	    'command': 'getAllSymbols'
     }");
-
-    public class StockCandle
-    {
-        public DateTime Date { get; set; }
-        public double Open { get; set; }
-        public double High { get; set; }
-        public double Low { get; set; }
-        public double Close { get; set; }
-        public long Volume { get; set; }
-    }
 
     public string SearchText = "";
     public List<Item> TestItems = new List<Item>();
@@ -210,20 +184,17 @@ else
                                 }
                                 else
                                 {
-                                    // Handle missing bid value (assign default or skip element)
-                                    Console.WriteLine($"Missing bid value in element: {element}");
+                                    Console.WriteLine($"Missing bid value");
                                 }
                             }
                             catch (Exception ex)
                             {
-                                // Handle potential errors during extraction
                                 Console.WriteLine($"Error extracting data from element: {ex.Message}");
                             }
                         }
                     }
                     else
                     {
-                        // Handle unexpected data type for pair.Value
                         Console.WriteLine($"Unexpected data type for returnData: {pair.Value.GetType().Name}");
                     }
                 }
@@ -234,7 +205,7 @@ else
                     modifiedItems.Add(new Item { Symbol = newSymbol, Description = item.Description, Bid = item.Bid });
                 }
 
-                TestItems = modifiedItems; // Update the original list with modified items
+                TestItems = modifiedItems;
 
                 TestItems = TestItems.DistinctBy(item => item.Symbol).ToList();
             }
@@ -277,23 +248,15 @@ else
         Warning,
         Error
     }
-
-    public void test5()
-    {
-        canWeCandle();
-        Console.WriteLine("canWeCandle Json: " + can);
-    }
       
     public void HandleBidClick(float bidValue, int quantity)
 
     {
-        // Find the selected item based on bidValue (assuming bidValue is unique)
         var selectedItem = TestItems.FirstOrDefault(item => item.Bid == bidValue);
 
         if (selectedItem != null)
         {
             Console.WriteLine($"Quantity value is equal to: {quantity}");
-            // Call helper function to insert data into MySQL database
             Task.Run(() => mySQLSqlHelperMain.InsertPortfolio(selectedItem.Symbol!, selectedItem.Description!, bidValue, quantity));
             Console.WriteLine($"Bid value clicked and data inserted for: {selectedItem.Symbol}");
         }
@@ -320,7 +283,7 @@ else
         }
         else
         {
-            // Handle invalid quantity input (e.g., display a message)
+            await JSRuntime.InvokeVoidAsync("alert", "Proszę o wpisanie właściwej ilości akcji które chcesz zakupić.");
         }
     }
 
@@ -353,7 +316,7 @@ else
         }
         else
         {
-            // Handle invalid quantity (e.g., display message)
+            await JSRuntime.InvokeVoidAsync("alert", "Proszę o wpisanie właściwej ilości akcji które chcesz zakupić.");
             Console.WriteLine("Invalid quantity entered. Please enter a positive integer.");
         }
     }
