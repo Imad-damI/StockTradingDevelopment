@@ -26,7 +26,7 @@
 <div>
 @if (!TestItems.Any())
 {
-    <p>Nic nie znaleziono...</p>
+    <p>Pobieranie danych z giełdy...</p>
 }
 else
 {
@@ -79,19 +79,6 @@ else
         }
     }");
 
-    public class CHART_LAST_INFO_RECORD
-    {
-        public int Period { get; set; }
-        public double Start { get; set; }
-        public string SymbolC { get; set; }
-
-        public CHART_LAST_INFO_RECORD(int period, string symbol)
-        {
-            Period = period;
-            Start = TimeZoneInfo.ConvertTimeToUtc(DateTime.Now.AddDays(-1), TimeZoneInfo.FindSystemTimeZoneById("Central European Standard Time")).Subtract(new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
-            SymbolC = symbol;
-        }
-    }
 
 
     private JObject temst = JObject.Parse(@"{
@@ -126,10 +113,7 @@ else
     protected override async Task OnInitializedAsync()
     {
 
-
-
         var url = new Uri("wss://ws.xtb.com/demo");
-        var StId = "";
         _client = new WebsocketClient(url);
 
         _client.Name = "XTB";
@@ -152,7 +136,6 @@ else
         _client.MessageReceived.Subscribe(msg =>
         {
             Log($"Received: '{msg.Text}'", LogSeverity.Info);
-            string json2 = JsonConvert.SerializeObject(msg.Text);
             JObject parsed = JObject.Parse(msg.Text);
 
             foreach (var pair in parsed)
@@ -209,8 +192,9 @@ else
 
                 TestItems = TestItems.DistinctBy(item => item.Symbol).ToList();
             }
+            InvokeAsync(StateHasChanged);
+            Console.WriteLine("Ended the download");
         });
-
 
         Console.WriteLine("Starting...");
         await _client.Start();
@@ -248,7 +232,7 @@ else
         Warning,
         Error
     }
-      
+
     public void HandleBidClick(float bidValue, int quantity)
 
     {
@@ -268,9 +252,11 @@ else
 
     public void gibAll()
     {
+        Console.WriteLine("GibAllStarted");
         _message = JsonConvert.SerializeObject(temst);
         _client?.Send(_message);
         InvokeAsync(StateHasChanged);
+        Console.WriteLine("GibAllEnded");
     }
 
     private async Task PromptForQuantity(Item item)
