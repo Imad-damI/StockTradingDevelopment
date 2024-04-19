@@ -16,3 +16,19 @@
     height: 20px;
     display: inline-block;
 }
+
+.toast {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    padding: 10px 20px;
+    background-color: #f1f1f1;
+    border-radius: 5px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    z-index: 9999;
+    display: none; /* Initially hide the toast */
+}
+
+    .toast.show {
+        display: block; /* Show the toast on message */
+    }

@@ -13,8 +13,19 @@
 @using STD.Components.Models;
 
 @inject IJSRuntime JSRuntime
+@inject NavigationManager NavigationManager
+@inject IToastService ToastService
 
 <InfoCardModalUser></InfoCardModalUser>
+
+<div>
+    <input type="number" @bind="newWalletValue" />
+    <button class="btn btn-outline-success btn-sm" @onclick="@(() => SetWalletBalance(newWalletValue))">Ustaw środki w portfelu</button>
+</div>
+
+<div>
+    <button class="btn btn-success" @onclick="@(() => ToastService.ShowSuccess("I'm a SUCCESS message with a custom title"))">Success Toast</button>
+</div>
 
 @if (portfolioItems.Any())
 {
@@ -86,6 +97,7 @@ else
 </span>
 
 @code {
+    private double newWalletValue;
     private readonly List<LogMessage> _logs = new List<LogMessage>();
     private IWebsocketClient? _client;  
     private string _message = "ping";
@@ -353,41 +365,66 @@ else
 
         if (portfolioItem.Amount <= 0)
         {
-            // Handle error: user doesn't have any of this stock
-            Console.WriteLine($"Error: User doesn't have any of stock {portfolioItem.Symbol}.");
+            // Handle case where user tries to sell zero or negative amount (optional)
+            Console.WriteLine($"Error: User cannot sell zero or negative amount of stock.");
             return;
         }
 
-        //double currentWalletBalance = await GetWalletBalanceFromDatabase();
+        // Get the amount of stock the user wants to sell
+        int amountToSell = await JSRuntime.InvokeAsync<int>("promptForSellAmount", portfolioItem.Amount);
 
-        double profit = (Math.Round(portfolioItem.CurrentBid - portfolioItem.Bid, 3) * portfolioItem.Amount);
+        if (amountToSell <= 0 || amountToSell > portfolioItem.Amount)
+        {
+            // Handle error: invalid sell amount
+            Console.WriteLine($"Error: Invalid sell amount. Please enter a value between 1 and {portfolioItem.Amount}.");
+            return;
+        }
+
+        double profit = (Math.Round(portfolioItem.CurrentBid - portfolioItem.Bid, 3) * amountToSell);
 
         // Update user wallet balance in database
         await updateWalletBalance(profit);
 
         // Add to history
+        await mySQLSqlHelperUser.InsertHistory(portfolioItem.Symbol!, portfolioItem.Description!, portfolioItem.Bid!, amountToSell, portfolioItem.Date, Convert.ToSingle(profit));
 
-        await mySQLSqlHelperUser.InsertHistory(portfolioItem.Symbol!, portfolioItem.Description!, portfolioItem.Bid!, portfolioItem.Amount, portfolioItem.Date, Convert.ToSingle(profit));
+        // Update the stock amount in the portfolio database
+        portfolioItem.Amount -= amountToSell;
 
-        // Delete stock from portfolio database
-
-        string deleteQuery = "DELETE FROM portfolio WHERE stock_id = @StockId";
+        string updateQuery = "UPDATE portfolio SET amount = @NewAmount WHERE stock_id = @StockId";
         using (MySqlConnection connection = mySQLSqlHelper.GetConnection())
         {
             connection.Open();
-            using (var cmd = new MySqlCommand(deleteQuery, connection))
+            using (var cmd = new MySqlCommand(updateQuery, connection))
             {
+                cmd.Parameters.AddWithValue("@NewAmount", portfolioItem.Amount);
                 cmd.Parameters.AddWithValue("@StockId", stockId);
                 await cmd.ExecuteNonQueryAsync();
             }
         }
 
-        // Remove the sold item from the portfolio list
-        portfolioItems.Remove(portfolioItem);
+        // Remove the stock from portfolio if amount becomes 0
+        if (portfolioItem.Amount == 0)
+        {
+            string deleteQuery = "DELETE FROM portfolio WHERE stock_id = @StockId";
+            using (MySqlConnection connection = mySQLSqlHelper.GetConnection())
+            {
+                connection.Open();
+                using (var cmd = new MySqlCommand(deleteQuery, connection))
+                {
+                    cmd.Parameters.AddWithValue("@StockId", stockId);
+                    await cmd.ExecuteNonQueryAsync();
+                }
+            }
+
+            // Remove the item from the portfolio list
+            portfolioItems.Remove(portfolioItem);
+        }
 
         // Refresh the table display
         await InvokeAsync(StateHasChanged);
     }
+
 
     // Basic updateWalletBalance function (replace with your actual implementation)
     private async Task updateWalletBalance(double walletUpMoney)
@@ -424,7 +461,36 @@ else
         }
     }
 
+    private async Task SetWalletBalance(double newBalance)
+    {
+        // Update wallet balance in database using newWalletValue
+        try
+        {
+            string updateQuery = "UPDATE user SET wallet = @NewBalance WHERE Id = @UserId";
+            using (MySqlConnection connection = mySQLSqlHelper.GetConnection())
+            {
+                connection.Open();
+                using (var cmd = new MySqlCommand(updateQuery, connection))
+                {
+                    cmd.Parameters.AddWithValue("@NewBalance", newBalance);
+                    cmd.Parameters.AddWithValue("@UserId", 1);
+                    await cmd.ExecuteNonQueryAsync();
+                }
+            }
+            ToastService.ShowSuccess("Wallet balance updated successfully!");
+        }
 
+        catch (MySqlException ex)
+        {
+            // Handle database update error
+            Console.WriteLine($"Error updating wallet balance: {ex.Message}");
+        }
+
+        // Update currentWalletBalance and refresh UI (optional)
+        currentWalletBalance = await GetWalletBalanceFromDatabase();
+        StateHasChanged();
+        
+    }
 
 
 }

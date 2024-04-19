@@ -7,6 +7,8 @@ using Microsoft.AspNetCore.Http;
 using System.Net.WebSockets;
 using STD.Components.Models;
 using STD.Data;
+using MySqlConnector;
+using Blazored.Toast;
 
 
 
@@ -15,6 +17,9 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddBlazorBootstrap();
 
 builder.Services.AddControllers();
+
+builder.Services.AddBlazoredToast();
+
 
 mySQLSqlHelper.conStr = builder.Configuration["ConnectionStrings:DefaultConnection"];
 
