@@ -13,6 +13,7 @@
 @inherits LayoutComponentBase
 @inject IJSRuntime JSRuntime
 @inject IHostEnvironment Environment
+@implements IDisposable
 
 <BlazoredToasts Position="ToastPosition.BottomRight"
                 Timeout="10"
@@ -59,6 +60,27 @@
     {
         walletValue = await GetWalletBalanceFromDatabase();
         timer = new Timer(_ => UpdateWalletValue(), null, 0, 1000);
+    }
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        var timer = new System.Threading.Timer((_) =>
+        {
+
+            InvokeAsync(async () =>
+            {
+                walletValue = await GetValue();
+                StateHasChanged();
+            });
+        }, null, 0, 1000);
+
+    }
+
+    private async Task<double> GetValue()
+    {
+        return await GetWalletBalanceFromDatabase();
+
     }
 
     private async Task UpdateWalletValue()

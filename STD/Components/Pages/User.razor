@@ -11,6 +11,7 @@
 @using System.Collections.Generic;
 @using Websocket.Client.Threading;
 @using STD.Components.Models;
+@using Microsoft.AspNetCore.Components;
 
 @inject IJSRuntime JSRuntime
 @inject NavigationManager NavigationManager
@@ -21,10 +22,6 @@
 <div>
     <input type="number" @bind="newWalletValue" />
     <button class="btn btn-outline-success btn-sm" @onclick="@(() => SetWalletBalance(newWalletValue))">Ustaw środki w portfelu</button>
-</div>
-
-<div>
-    <button class="btn btn-success" @onclick="@(() => ToastService.ShowSuccess("I'm a SUCCESS message with a custom title"))">Success Toast</button>
 </div>
 
 @if (portfolioItems.Any())
@@ -376,7 +373,7 @@ else
         if (amountToSell <= 0 || amountToSell > portfolioItem.Amount)
         {
             // Handle error: invalid sell amount
-            Console.WriteLine($"Error: Invalid sell amount. Please enter a value between 1 and {portfolioItem.Amount}.");
+            ToastService.ShowError($"Error: Invalid sell amount. Please enter a value between 1 and {portfolioItem.Amount}.");
             return;
         }
 
@@ -402,6 +399,9 @@ else
                 await cmd.ExecuteNonQueryAsync();
             }
         }
+
+        ToastService.ShowSuccess($"Pomyślnie sprzedano akcje {portfolioItem.Symbol} w ilości {amountToSell}");
+        StateHasChanged();
 
         // Remove the stock from portfolio if amount becomes 0
         if (portfolioItem.Amount == 0)
@@ -477,7 +477,7 @@ else
                     await cmd.ExecuteNonQueryAsync();
                 }
             }
-            ToastService.ShowSuccess("Wallet balance updated successfully!");
+            ToastService.ShowSuccess($"Pomyślnie zmieniono wartość portfela na {newBalance}!");
         }
 
         catch (MySqlException ex)
