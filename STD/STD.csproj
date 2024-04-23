@@ -12,18 +12,17 @@
     <PackageReference Include="Blazored.Toast" Version="4.2.1" />
     <PackageReference Include="BlazorJS" Version="2.1.5" />
     <PackageReference Include="bootstrap" Version="5.3.3" />
-    <PackageReference Include="BootstrapBlazor" Version="8.4.2" />
+    <PackageReference Include="BootstrapBlazor" Version="8.4.7" />
     <PackageReference Include="Microsoft.AspNet.SignalR.Core" Version="2.4.3" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR" Version="1.1.0" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="8.0.3" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Common" Version="8.0.3" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.Json" Version="8.0.3" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.3" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.4" />
     <PackageReference Include="Microsoft.Extensions.Identity.Core" Version="8.0.4" />
     <PackageReference Include="MySqlConnector" Version="2.3.6" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="Newtonsoft.Json.Bson" Version="1.0.2" />
-    <PackageReference Include="Syncfusion.Blazor.Charts" Version="25.1.38" />
     <PackageReference Include="System.Net.WebSockets" Version="4.3.0" />
     <PackageReference Include="System.Text.Json" Version="8.0.3" />
     <PackageReference Include="Websocket.Client" Version="5.1.1" />

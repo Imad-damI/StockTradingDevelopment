@@ -18,6 +18,11 @@
 
 <InfoCardModal></InfoCardModal>
 
+<div class="form-check form-switch mt-3">
+    <input class="form-check-input" type="checkbox" id="showPlnOnly" @bind="showPlnOnly">
+    <label class="form-check-label" for="showPlnOnly">Pokaż tylko Polskie spółki</label>
+</div>
+
 <div class="text-center bg-blue-100">
     <input class="bg-success bg-opacity-25"
         @bind-value="SearchText"
@@ -33,26 +38,57 @@ else
     @if (SearchText?.Length > 0)
     {
         <div class="p-2">
-            @foreach (var item in TestList)
+                @foreach (var item in TestList.Where(x => !showPlnOnly || (x.Currency?.ToLower()?.Contains("pln") ?? false)))
+
             {
-
-                    <div class="border border-primary border-opacity-75 rounded bg-info bg-opacity-25 p-1 mb-3 d-flex justify-content-between align-items-center">
-                        <div><p class="my-auto"><b>@item.Symbol</b> - @item.Description (@item.Bid zł)</p></div>
-                        <div><button class="btn btn-outline-success btn-sm" @onclick="() => ShowQuantityInput(item)">Wybierz</button></div>
+                <div class="border border-primary border-opacity-75 rounded bg-info bg-opacity-25 p-1 mb-3 d-flex justify-content-between align-items-center">
+                    <div><p class="my-auto"><b>@item.Symbol</b> - @item.Description (@item.Bid zł)</p></div>
+                    <div><button class="btn btn-outline-success btn-sm" @onclick="() => ShowQuantityInput(item)">Wybierz</button></div>
                 </div>
-
 
                 @if (_selectedItemForQuantity?.Symbol == item.Symbol) // Only show for selected item
                 {
-                        <div class="d-flex align-items-center  mb-2">
-                            <input class="bg-info bg-opacity-10 p-1" type="number" @bind="_quantityInput" placeholder="Wpisz ilość" />
-                            <button class="btn btn-outline-success btn-sm p-1 ms-4" @onclick="HandleBuyStockClick">Kup akcje</button>
-                        </div>
+                    <div class="d-flex align-items-center mb-2">
+                        <input class="bg-info bg-opacity-10 p-1" type="number" @bind="_quantityInput" placeholder="Wpisz ilość" />
+                        <button class="btn btn-outline-success btn-sm p-1 ms-4" @onclick="HandleBuyStockClick">Kup akcje</button>
+                    </div>
                 }
-
             }
         </div>
     }
+
+    else if (SearchText?.Length == 0)
+    {
+        // Filter by exact symbol match
+        var wig20Items = TestItems.Where(item => Wig20Symbols.Contains(item.Symbol) && item.Symbol == item.Symbol.Trim()).ToList();
+
+        if (wig20Items.Any())
+        {
+            // Display WIG 20 items here
+            <div class="p-2">
+                @foreach (var item in wig20Items)
+                {
+                    <div class="border border-primary border-opacity-75 rounded bg-info bg-opacity-25 p-1 mb-3 d-flex justify-content-between align-items-center">
+                        <div><p class="my-auto"><b>@item.Symbol</b> - @item.Description (@item.Bid zł)</p></div>
+                        <div><button class="btn btn-outline-success btn-sm" @onclick="() => ShowQuantityInput(item)">Wybierz</button></div>
+                    </div>
+
+                    @if (_selectedItemForQuantity?.Symbol == item.Symbol) // Only show for selected item
+                    {
+                        <div class="d-flex align-items-center mb-2">
+                            <input class="bg-info bg-opacity-10 p-1" type="number" @bind="_quantityInput" placeholder="Wpisz ilość" />
+                            <button class="btn btn-outline-success btn-sm p-1 ms-4" @onclick="HandleBuyStockClick">Kup akcje</button>
+                        </div>
+                    }
+                }
+            </div>
+        }
+        else
+        {
+            <p>Brak dostępnych spółek z indeksu WIG20</p>
+        }
+    }
+
     else
     {
         <p>Wpisz coś by wyszukać...</p>
@@ -79,7 +115,9 @@ else
         }
     }");
 
+    public List<string> Wig20Symbols { get; set; } = new List<string>() { "ALE", "ALR", "BDX", "CDR", "CPS", "DNP", "JSW", "KTY", "KGH", "KRU", "LPP", "MBK", "OPL", "PEO", "PCO", "PGE", "PKN", "PKO", "PZU", "SPL"};
 
+    bool showPlnOnly = false;
 
     private JObject temst = JObject.Parse(@"{
 	    'command': 'getAllSymbols'
@@ -93,13 +131,13 @@ else
     {
         public string? Symbol { get; set; }
         public string? Description { get; set; }
+        public string? Currency { get; set; }
         public float Bid { get; set; }
     }
 
     private List<Item> TestList => TestItems
     .Where(item =>
-        (item.Description == null || // Optional check for null descriptions
-         !item.Description.ToUpperInvariant().Contains("CFD")) &&
+        !(item.Description == null) &&
         ((item.Symbol?.Split('.')?.FirstOrDefault() ?? "").ToLower().Contains(SearchText.ToLower()) ||
          (item.Description?.ToLower().Contains(SearchText.ToLower()) ?? false))
     )
@@ -152,13 +190,14 @@ else
                             {
                                 var symbol = element["symbol"]?.Value<string>();
                                 var description = element["description"]?.Value<string>();
+                                var currency = element["currency"]?.Value<string>();
                                 var bid = element["bid"].Value<float>();
 
                                 if (bid != 0)
                                 {
                                     if (bid != 0)
                                     {
-                                        TestItems.Add(new Item { Symbol = symbol, Description = description, Bid = bid });
+                                        TestItems.Add(new Item { Symbol = symbol, Description = description, Currency = currency,Bid = bid });
                                     }
                                     else
                                     {
@@ -185,7 +224,7 @@ else
                 foreach (Item item in TestItems)
                 {
                     string newSymbol = item.Symbol?.Split('.')?.FirstOrDefault() ?? "";
-                    modifiedItems.Add(new Item { Symbol = newSymbol, Description = item.Description, Bid = item.Bid });
+                    modifiedItems.Add(new Item { Symbol = newSymbol, Description = item.Description, Currency = item.Currency, Bid = item.Bid });
                 }
 
                 TestItems = modifiedItems;

@@ -9,10 +9,18 @@ using STD.Components.Models;
 using STD.Data;
 using MySqlConnector;
 using Blazored.Toast;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Components.Authorization;
 
 
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddCascadingAuthenticationState();
+
+//builder.Services.AddScoped<IdentityUserAccessor>();
+//builder.Services.AddScoped<IdentityRedirectManager>();
+//builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
 
 builder.Services.AddBlazorBootstrap();
 
@@ -20,6 +28,12 @@ builder.Services.AddControllers();
 
 builder.Services.AddBlazoredToast();
 
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultScheme = IdentityConstants.ApplicationScheme;
+    options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
+})
+    .AddIdentityCookies();
 
 mySQLSqlHelper.conStr = builder.Configuration["ConnectionStrings:DefaultConnection"];
 
