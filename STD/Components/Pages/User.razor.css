@@ -29,6 +29,6 @@
     display: none; /* Initially hide the toast */
 }
 
-    .toast.show {
-        display: block; /* Show the toast on message */
-    }
+.toast.show {
+    display: block; /* Show the toast on message */
+}

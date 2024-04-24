@@ -355,37 +355,30 @@ else
         var portfolioItem = portfolioItems.FirstOrDefault(i => i.Id == stockId);
         if (portfolioItem == null)
         {
-            // Handle error: item not found in portfolio
             Console.WriteLine($"Error: Stock with ID {stockId} not found in portfolio.");
             return;
         }
 
         if (portfolioItem.Amount <= 0)
         {
-            // Handle case where user tries to sell zero or negative amount (optional)
             Console.WriteLine($"Error: User cannot sell zero or negative amount of stock.");
             return;
         }
 
-        // Get the amount of stock the user wants to sell
         int amountToSell = await JSRuntime.InvokeAsync<int>("promptForSellAmount", portfolioItem.Amount);
 
         if (amountToSell <= 0 || amountToSell > portfolioItem.Amount)
         {
-            // Handle error: invalid sell amount
             ToastService.ShowError($"Error: Invalid sell amount. Please enter a value between 1 and {portfolioItem.Amount}.");
             return;
         }
 
         double profit = (Math.Round(portfolioItem.CurrentBid - portfolioItem.Bid, 3) * amountToSell);
 
-        // Update user wallet balance in database
         await updateWalletBalance(profit);
 
-        // Add to history
         await mySQLSqlHelperUser.InsertHistory(portfolioItem.Symbol!, portfolioItem.Description!, portfolioItem.Bid!, amountToSell, portfolioItem.Date, Convert.ToSingle(profit));
 
-        // Update the stock amount in the portfolio database
         portfolioItem.Amount -= amountToSell;
 
         string updateQuery = "UPDATE portfolio SET amount = @NewAmount WHERE stock_id = @StockId";
